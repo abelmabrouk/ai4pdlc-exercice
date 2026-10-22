@@ -1,0 +1,45 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-overlay);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: min(480px, 100%);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+
+.dialog__title {
+  margin: 0;
+}
+
+.dialog__message {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.dialog__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.dialog__hint--ok {
+  color: var(--color-feedback-success);
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}

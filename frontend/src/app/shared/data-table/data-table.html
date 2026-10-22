@@ -1,0 +1,31 @@
+<div class="table-wrapper">
+  <table class="table" data-testid="data-table">
+    @if (caption(); as caption) {
+      <caption class="visually-hidden">{{ caption }}</caption>
+    }
+    <thead>
+      <tr>
+        @for (column of columns(); track column.key) {
+          <th scope="col" [style.width]="column.width" [class]="'align-' + (column.align ?? 'start')">
+            {{ column.header }}
+          </th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (row of rows(); track trackBy()(row)) {
+        <tr [attr.data-testid]="rowTestId()?.(row)">
+          @for (column of columns(); track column.key) {
+            <td [class]="'align-' + (column.align ?? 'start')">
+              @if (templates().get(column.key); as template) {
+                <ng-container *ngTemplateOutlet="template; context: { $implicit: row }" />
+              } @else {
+                {{ cellValue(column, row) }}
+              }
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

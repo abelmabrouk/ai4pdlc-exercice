@@ -1,0 +1,27 @@
+<header class="header">
+  <a routerLink="/" class="header__brand">Congés</a>
+
+  <nav class="header__nav">
+    <a routerLink="/mes-demandes" routerLinkActive="is-active">Mes demandes</a>
+    @if (currentUser.user()?.isManager) {
+      <a routerLink="/manager/demandes" routerLinkActive="is-active" data-testid="nav-pending">Demandes en attente</a>
+    }
+  </nav>
+
+  <label class="header__user">
+    <span>Connecté en tant que</span>
+    <select class="select" data-testid="user-switcher" [value]="currentUser.userId()" (change)="onUserChange($event)">
+      @for (employee of currentUser.employees(); track employee.id) {
+        <option [value]="employee.id" [selected]="employee.id === currentUser.userId()">
+          {{ employee.fullName }} — {{ employee.teamName }}{{ employee.isManager ? ' (manager)' : '' }}
+        </option>
+      }
+    </select>
+  </label>
+</header>
+
+<main class="content">
+  <router-outlet />
+</main>
+
+<app-toast />

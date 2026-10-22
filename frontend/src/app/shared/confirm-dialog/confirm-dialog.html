@@ -1,0 +1,61 @@
+@if (open()) {
+  <div class="overlay" (click)="cancel()">
+    <div
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      data-testid="confirm-dialog"
+      (click)="$event.stopPropagation()"
+    >
+      <h2 id="confirm-dialog-title" class="dialog__title">{{ title() }}</h2>
+      @if (message()) {
+        <p class="dialog__message">{{ message() }}</p>
+      }
+
+      @if (reasonLabel()) {
+        <label class="field">
+          <span class="field__label">{{ reasonLabel() }}</span>
+          <textarea
+            class="textarea"
+            data-testid="confirm-dialog-reason"
+            [value]="reason()"
+            (input)="reason.set($any($event.target).value)"
+          ></textarea>
+          @if (reasonMinLength() > 0) {
+            <span
+              class="dialog__hint"
+              [class.dialog__hint--ok]="reasonLength() >= reasonMinLength()"
+              data-testid="confirm-dialog-reason-hint"
+            >
+              {{ reasonLength() }} / {{ reasonMinLength() }} caractères minimum
+            </span>
+          }
+        </label>
+      }
+
+      <div class="dialog__actions">
+        <button
+          type="button"
+          class="btn btn--secondary"
+          data-testid="confirm-dialog-cancel"
+          [disabled]="busy()"
+          (click)="cancel()"
+        >
+          {{ cancelLabel() }}
+        </button>
+        <button
+          type="button"
+          class="btn"
+          [class.btn--primary]="tone() === 'default'"
+          [class.btn--danger]="tone() === 'danger'"
+          data-testid="confirm-dialog-confirm"
+          [disabled]="!canConfirm()"
+          (click)="confirm()"
+        >
+          {{ confirmLabel() }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,14 @@
+# .NET
+bin/
+obj/
+backend/src/Conges.Api/data/*.db*
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Outils
+.DS_Store
+*.swp
+.idea/

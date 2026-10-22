@@ -1,0 +1,33 @@
+<h1>Mes demandes</h1>
+
+@if (currentUser.user(); as user) {
+  <p>
+    Solde de congés payés : <strong data-testid="my-balance">{{ user.paidLeaveBalance }} jours</strong>
+  </p>
+}
+
+@if (requests.isLoading()) {
+  <div class="skeleton" aria-busy="true">
+    <div class="skeleton__row"></div>
+    <div class="skeleton__row"></div>
+  </div>
+} @else if (requests.error()) {
+  <div class="state-panel state-panel--error">
+    <p>Impossible de charger vos demandes.</p>
+    <button type="button" class="btn btn--secondary" (click)="requests.reload()">Réessayer</button>
+  </div>
+} @else if (requests.value()?.length) {
+  <app-data-table [columns]="columns" [rows]="requests.value() ?? []" [trackBy]="trackById" caption="Mes demandes de congé">
+    <ng-template appCell="period" let-row>
+      du {{ row.startDate | date: 'dd/MM/yyyy' }} au {{ row.endDate | date: 'dd/MM/yyyy' }}
+    </ng-template>
+    <ng-template appCell="status" let-row>
+      <app-status-badge [status]="row.status" />
+    </ng-template>
+  </app-data-table>
+} @else {
+  <div class="state-panel">
+    <span class="state-panel__icon" aria-hidden="true">🗓️</span>
+    <p>Vous n'avez encore aucune demande de congé.</p>
+  </div>
+}
