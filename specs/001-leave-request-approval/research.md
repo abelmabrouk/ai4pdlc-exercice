@@ -1,5 +1,8 @@
 # Research — Soumission et validation des demandes de congé
 
+> **Révision du 2026-11-03 — alignement sur le wiki de l'équipe.** Les décisions R1, R2, R3, R4, R5 et R7 ci-dessous
+> sont remplacées par la section « Révision wiki » en fin de document, qui fait foi.
+
 Aucune inconnue technique bloquante : la pile est fixée par la constitution et le code existant. Ce document
 consigne les décisions de conception et leur justification.
 
@@ -84,3 +87,27 @@ consigne les décisions de conception et leur justification.
 - **Point d'attention** : les données de démonstration sont relatives à la date du jour ; les tests qui créent des
   demandes utilisent des dates futures fixes (2027) choisies hors des demandes seedées, et des tests qui modifient
   l'état utilisent leur propre fixture pour ne pas interférer.
+
+## Révision wiki (fait foi)
+
+- **W1 — Décompte (RG-02, ADR-004).** `IHolidayCalendarService.CountWorkableDays` : jours **ouvrables** (lundi →
+  samedi, hors fériés et fermetures). `CountWorkingDays` (jours ouvrés, lundi → vendredi) est conservé pour le délai
+  de prévenance. Les deux partagent la même boucle ; aucun jour férié n'est calculé ailleurs.
+- **W2 — Prévenance (RG-03, RG-04).** Congés payés : `CountWorkingDays(aujourd'hui + 1, début − 1) ≥ 2`. Événement
+  familial : exempté. « Aujourd'hui » vient de `TimeProvider` ; les tests figent l'horloge via
+  `CongesApiFactory { Now = … }` (`FixedTimeProvider`).
+- **W3 — Erreurs (ADR-003, « Codes d'erreur »).** Une seule exception applicative `BusinessException(code, kind,
+  title, detail)` ; `BusinessErrorKind` (RuleViolation, Forbidden, NotFound, Conflict) est traduit par
+  `GlobalExceptionHandler` en 422 / 403 / 404 / 409, avec l'extension `code` et un `type` stable. Les codes et leurs
+  fabriques sont dans `LeaveErrors` (liste fermée du wiki). `ForbiddenException`, `ConflictException` et
+  `ConflictCodes` sont supprimés.
+- **W4 — Validation.** FluentValidation ne porte plus que la forme (type connu, longueurs maximales de 500). RG-01,
+  RG-02 et RG-13 sont vérifiées dans `LeaveRequestCommands` et produisent un code métier.
+- **W5 — Concurrence (RG-11).** La décision concurrente (jeton de concurrence sur `Status`) renvoie
+  `LEAVE_ALREADY_DECIDED`, le code `ConcurrentDecision` n'existant pas dans le référentiel.
+- **W6 — Circuit de validation.** `LeaveApprovers.ApproverOf` renvoie `null` pour le manager d'une équipe sans équipe
+  parente (Direction, validée hors application) ; `DecidableBy` ne renvoie jamais une demande de l'utilisateur. Une
+  soumission sans valideur est refusée en 403 `LEAVE_APPROVER_NOT_ALLOWED` : **code réutilisé faute de code dédié,
+  écart à remonter à la DRH** (le référentiel est fermé et maintenu dans le wiki).
+- **W7 — Refus (RG-13).** Motif `Trim()` d'au moins 10 caractères, sinon 422 `LEAVE_REJECTION_REASON_REQUIRED` ;
+  évalué après 404 / 403 / 409.

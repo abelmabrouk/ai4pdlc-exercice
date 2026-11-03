@@ -1,35 +1,19 @@
 import type { LeaveRequest, LeaveType } from '../../core/api.models';
 
-/** Filtres de l'écran « Demandes en attente » ; dates au format yyyy-MM-dd, chaîne vide = filtre inactif. */
+/** Filtres de l'écran « Demandes en attente » (wiki : Type, Collaborateur). Chaîne vide = filtre inactif. */
 export interface PendingFilters {
-  employee: string;
   type: LeaveType | '';
-  from: string;
-  to: string;
+  search: string;
 }
 
-export const EMPTY_FILTERS: PendingFilters = { employee: '', type: '', from: '', to: '' };
+export const EMPTY_FILTERS: PendingFilters = { type: '', search: '' };
 
-/** Minuscules sans accents, pour une recherche tolérante. */
-function normalize(value: string): string {
-  return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-}
-
-/**
- * Filtres combinés (ET) ; l'ordre d'entrée est conservé.
- * Période : on garde les demandes qui chevauchent [from, to] (comparaison de chaînes yyyy-MM-dd).
- */
+/** Filtres combinés sur la liste chargée ; recherche sur le nom insensible à la casse ; ordre conservé. */
 export function filterPendingRequests(requests: readonly LeaveRequest[], filters: PendingFilters): LeaveRequest[] {
-  const employee = normalize(filters.employee.trim());
+  const search = filters.search.trim().toLowerCase();
   return requests.filter(
     (r) =>
-      (!employee || normalize(r.employeeName).includes(employee)) &&
       (!filters.type || r.type === filters.type) &&
-      (!filters.from || r.endDate >= filters.from) &&
-      (!filters.to || r.startDate <= filters.to),
+      (!search || r.employeeName.toLowerCase().includes(search)),
   );
-}
-
-export function hasActiveFilters(filters: PendingFilters): boolean {
-  return Object.values(filters).some((value) => value.trim() !== '');
 }

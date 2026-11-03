@@ -2,143 +2,146 @@
 
 **Feature Branch**: `julien-guillaume-damien`
 
-**Created**: 2026-11-03
+**Created**: 2026-11-03 · **Révisée** : 2026-11-03 (alignement sur le wiki de l'équipe)
 
 **Status**: Draft
 
 **Input**: User description: "Un collaborateur peut soumettre une demande de congé ; la personne habilitée peut l'approuver ou la refuser ; le solde est mis à jour. Le tout en respectant les pratiques de l'équipe."
 
+## Références
+
+Documentation de l'équipe : https://github.com/abelmabrouk/ai4pdlc-exercice/wiki (elle fait foi, ADR-006).
+
+| Référence | Objet |
+|---|---|
+| ADR-001 | Architecture en couches, services applicatifs, controllers minces |
+| ADR-002 | SQLite, schéma sans migrations |
+| ADR-003 | Format des erreurs : ProblemDetails + extension `code`, statuts 422 / 403 / 404 / 409 ; règles de gestion hors FluentValidation |
+| ADR-004 | Jours fériés et fermetures exclusivement via `IHolidayCalendarService` |
+| ADR-005 | Utilisateur courant via `X-User-Id` / `ICurrentUser` |
+| ADR-006 | Rédaction des spécifications (cette section, traçabilité RG, codes d'erreur) |
+| RG-01 à RG-07 | Règles de soumission |
+| RG-10 à RG-14 | Règles de décision |
+| Décompte des jours | Jours **ouvrables** (lundi → samedi, hors fériés et fermetures) |
+| Circuit de validation | Valideur = N+1, ou N+2 pour un manager ; Direction validée hors application |
+| Codes d'erreur | `LEAVE_INVALID_PERIOD`, `LEAVE_NOTICE_TOO_SHORT`, `LEAVE_INSUFFICIENT_BALANCE`, `LEAVE_OVERLAP`, `LEAVE_REJECTION_REASON_REQUIRED`, `LEAVE_APPROVER_NOT_ALLOWED`, `LEAVE_ALREADY_DECIDED`, `LEAVE_NOT_FOUND` |
+| `ENONCE.md`, partie 1 | Contrat d'API (routes et formats non négociables) |
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Soumettre une demande de congé (Priority: P1)
 
-Un collaborateur saisit le type de congé (congés payés ou événement familial), une date de début, une date de fin
-et un commentaire facultatif. La demande est enregistrée « en attente » avec le nombre de jours ouvrés décomptés,
-et elle devient visible dans la liste des demandes existante.
+Un collaborateur saisit le type (congés payés ou événement familial), une date de début, une date de fin et un
+commentaire facultatif. La demande est enregistrée « en attente » avec le nombre de jours ouvrables décomptés.
 
-**Why this priority**: Sans soumission, il n'y a rien à décider ni à décompter : c'est le point d'entrée de tout
-le processus.
+**Why this priority**: point d'entrée de tout le processus.
 
-**Independent Test**: Se connecter en tant que Lea Petit, soumettre une demande de congés payés du lundi au
-vendredi d'une semaine sans jour férié, puis consulter la demande : elle est « en attente » et décompte 5 jours.
+**Independent Test**: en tant que Lea Petit, soumettre des congés payés du lundi 8 au vendredi 12 mars 2027 :
+demande « en attente », 5 jours, solde inchangé.
 
 **Acceptance Scenarios**:
 
-1. **Given** Lea Petit (solde 30 jours) sans demande sur la période, **When** elle soumet une demande de congés
-   payés du lundi 8 au vendredi 12 mars 2027 avec le commentaire « Vacances », **Then** la demande est créée avec
-   le statut « en attente », 5 jours décomptés, sa date de soumission, et son solde reste à 30 jours.
-2. **Given** une période contenant un week-end ou un jour férié, **When** un collaborateur soumet une demande
-   couvrant cette période, **Then** seuls les jours ouvrés (hors samedis, dimanches, jours fériés et fermetures
-   de l'entreprise) sont décomptés.
-3. **Given** Ines Moreau (solde 3 jours, dont 2 déjà engagés par une demande en attente), **When** elle soumet
-   une demande de congés payés de 2 jours ouvrés, **Then** la demande est refusée à la saisie avec un message
-   indiquant que le solde disponible est insuffisant.
-4. **Given** une demande dont la date de fin précède la date de début, ou dont la date de début est passée,
-   **When** elle est soumise, **Then** elle est rejetée avec un message d'erreur explicite et rien n'est enregistré.
-5. **Given** un collaborateur ayant déjà une demande en attente ou approuvée du 8 au 12 mars, **When** il soumet
-   une demande qui chevauche cette période, **Then** elle est rejetée avec un message signalant le chevauchement.
-6. **Given** une demande de type « événement familial », **When** elle est soumise, **Then** elle est acceptée
-   quel que soit le solde de congés payés.
-7. **Given** Claire Martin (manager de la Direction, équipe sans équipe parente), **When** elle soumet une demande
-   valide, **Then** la demande est créée « en attente », comme pour tout collaborateur, et son solde est inchangé.
+1. **[RG-02, RG-07]** **Given** Lea (solde 30) sans demande sur la période, **When** elle soumet des congés payés du
+   lundi 8 au vendredi 12 mars 2027 avec le commentaire « Vacances », **Then** la demande est créée « en attente »,
+   5 jours décomptés, avec sa date de soumission, et le solde reste à 30.
+2. **[RG-02]** **Given** une période du lundi au samedi sans jour férié, **When** elle est soumise, **Then** 6 jours
+   sont décomptés (le samedi est ouvrable, le dimanche jamais ; fériés et fermetures exclus).
+3. **[RG-01]** **Given** une date de fin antérieure à la date de début, ou une date de début passée, **When** la
+   demande est soumise, **Then** elle est refusée avec `LEAVE_INVALID_PERIOD` et rien n'est enregistré.
+4. **[RG-02]** **Given** une période sans jour décompté (un dimanche seul, un férié seul), **When** elle est soumise,
+   **Then** elle est refusée avec `LEAVE_INVALID_PERIOD`.
+5. **[RG-03]** **Given** une demande de congés payés soumise un lundi, **When** elle commence le mercredi, **Then** elle
+   est refusée avec `LEAVE_NOTICE_TOO_SHORT` ; **When** elle commence le jeudi, **Then** elle est acceptée.
+6. **[RG-04]** **Given** une demande « événement familial », **When** elle commence le jour même ou le lendemain de la
+   soumission, **Then** elle est acceptée.
+7. **[RG-05]** **Given** Ines Moreau (solde 3, dont 2 jours engagés par une demande en attente), **When** elle soumet
+   2 jours de congés payés, **Then** elle est refusée avec `LEAVE_INSUFFICIENT_BALANCE` ; une demande « événement
+   familial » de même durée est acceptée.
+8. **[RG-06]** **Given** une demande en attente ou approuvée du 8 au 12 mars, **When** le même collaborateur soumet une
+   demande qui la chevauche d'au moins un jour, **Then** elle est refusée avec `LEAVE_OVERLAP` ; une demande refusée
+   sur la même période ne bloque pas.
+9. **[Circuit de validation]** **Given** Claire Martin (Direction, équipe sans équipe parente, validée hors
+   application), **When** elle soumet une demande, **Then** elle est refusée avec `LEAVE_APPROVER_NOT_ALLOWED`.
 
 ---
 
 ### User Story 2 - Consulter les demandes à décider (Priority: P2)
 
-La personne habilitée (le manager de l'équipe du demandeur) consulte la liste des demandes en attente qu'elle
-est autorisée à décider, et uniquement celles-là.
+Le valideur consulte la liste des demandes en attente dont il est le valideur, et uniquement celles-là.
 
-**Why this priority**: Le décideur doit pouvoir retrouver ce qui l'attend avant de décider ; c'est aussi le
-support de l'écran « Demandes en attente » de la partie 2.
+**Why this priority**: support de l'écran « Demandes en attente » (partie 2).
 
-**Independent Test**: Avec les données de démonstration, se connecter en tant que Hugo Bernard et vérifier que
-la liste contient les demandes en attente de Lea, Karim et Ines, mais ni la sienne ni celles de l'équipe Support.
+**Independent Test**: en tant que Hugo Bernard, la liste contient les demandes de Lea, Karim et Ines, ni la sienne
+ni celles du Support.
 
 **Acceptance Scenarios**:
 
-1. **Given** les données de démonstration, **When** Hugo Bernard (manager Produit) consulte ses demandes à
-   décider, **Then** il voit uniquement les demandes en attente des membres de l'équipe Produit autres que lui.
-2. **Given** les données de démonstration, **When** Claire Martin (manager de la Direction) consulte ses demandes
-   à décider, **Then** elle voit la demande en attente de Hugo Bernard (manager d'une équipe rattachée à la
-   Direction).
-3. **Given** un collaborateur qui ne manage aucune équipe, **When** il consulte ses demandes à décider, **Then**
-   la liste est vide.
-4. **Given** des demandes approuvées ou refusées, **When** un manager consulte ses demandes à décider, **Then**
-   elles n'apparaissent pas.
-5. **Given** une demande en attente de Claire Martin, **When** Claire consulte ses demandes à décider, **Then** sa
-   propre demande y figure, avec celles de Hugo Bernard et Sophie Laurent.
+1. **[RG-10]** **Given** les données de démonstration, **When** Hugo consulte sa liste, **Then** il voit uniquement les
+   demandes en attente des membres de Produit autres que lui.
+2. **[RG-10]** **Given** les données de démonstration, **When** Claire consulte sa liste, **Then** elle voit la demande
+   de Hugo (N+2), et jamais une demande dont elle serait l'auteur.
+3. **Given** un collaborateur qui n'est valideur d'aucune demande, **When** il consulte sa liste, **Then** elle est vide.
+4. **[RG-11]** **Given** des demandes approuvées ou refusées, **When** un manager consulte sa liste, **Then** elles
+   n'apparaissent pas.
 
 ---
 
 ### User Story 3 - Approuver une demande et mettre à jour le solde (Priority: P1)
 
-La personne habilitée approuve une demande en attente. La demande passe « approuvée », la date et l'auteur de la
-décision sont conservés et, pour des congés payés, le solde du demandeur est diminué du nombre de jours décomptés.
+Le valideur approuve une demande en attente ; pour des congés payés, le solde est débité à ce moment-là.
 
-**Why this priority**: C'est la finalité du processus : l'approbation et la mise à jour du solde.
+**Why this priority**: finalité du processus.
 
-**Independent Test**: Se connecter en tant que Hugo Bernard, approuver la demande de 5 jours de Lea Petit, puis
-vérifier le statut de la demande et le solde de Lea (25 jours).
+**Independent Test**: Hugo approuve la demande de 5 jours de Lea : statut « approuvée », solde de Lea à 25.
 
 **Acceptance Scenarios**:
 
-1. **Given** la demande de congés payés de 5 jours de Lea Petit en attente et un solde de 30 jours, **When** Hugo
-   Bernard l'approuve, **Then** la demande est « approuvée », Hugo est enregistré comme décideur avec la date de
-   décision, et le solde de Lea passe à 25 jours.
-2. **Given** une demande « événement familial » en attente, **When** le manager habilité l'approuve, **Then** la
-   demande est « approuvée » et le solde de congés payés du demandeur est inchangé.
-3. **Given** une demande en attente de Karim Benali, **When** Sophie Laurent (manager Support) tente de
-   l'approuver, **Then** l'action est interdite et la demande reste inchangée.
-4. **Given** sa propre demande en attente, **When** Hugo Bernard tente de l'approuver, **Then** l'action est
-   interdite.
-5. **Given** une demande déjà approuvée ou refusée, **When** le manager habilité tente de l'approuver, **Then**
-   l'action est refusée pour conflit d'état et ni la demande ni le solde ne changent.
-6. **Given** une demande de congés payés dont le nombre de jours dépasse le solde actuel du demandeur au moment
-   de la décision, **When** le manager tente de l'approuver, **Then** l'approbation est refusée et le solde ne
-   devient jamais négatif.
-7. **Given** une demande de congés payés de 5 jours de Claire Martin en attente et un solde de 30 jours, **When**
-   Claire l'approuve elle-même, **Then** la demande est « approuvée », Claire est enregistrée comme décideur et son
-   solde passe à 25 jours (elle peut de même la refuser).
+1. **[RG-12, RG-14]** **Given** la demande de congés payés de 5 jours de Lea en attente (solde 30), **When** Hugo
+   l'approuve, **Then** elle passe « approuvée », Hugo et la date de décision sont enregistrés, et le solde passe à 25.
+2. **[RG-12]** **Given** une demande « événement familial » en attente, **When** son valideur l'approuve, **Then** le
+   solde est inchangé.
+3. **[RG-10]** **Given** une demande de Karim, **When** Sophie Laurent tente de l'approuver, **Then** elle est refusée
+   avec `LEAVE_APPROVER_NOT_ALLOWED` et la demande est inchangée.
+4. **[RG-10]** **Given** sa propre demande, **When** Hugo tente de l'approuver, **Then** elle est refusée avec
+   `LEAVE_APPROVER_NOT_ALLOWED`.
+5. **[RG-11]** **Given** une demande déjà approuvée ou refusée, **When** son valideur tente de l'approuver, **Then**
+   elle est refusée avec `LEAVE_ALREADY_DECIDED`, sans aucune modification du solde.
+6. **[RG-12]** **Given** une demande de congés payés dont la durée dépasse le solde au moment de la décision, **When**
+   son valideur l'approuve, **Then** elle est refusée avec `LEAVE_INSUFFICIENT_BALANCE` ; le solde n'est jamais négatif.
+7. **Given** une demande inexistante, **When** une décision est tentée, **Then** la réponse est `LEAVE_NOT_FOUND`.
 
 ---
 
 ### User Story 4 - Refuser une demande avec un motif (Priority: P2)
 
-La personne habilitée refuse une demande en attente en indiquant obligatoirement un motif. Le solde n'est pas
-modifié.
+Le valideur refuse une demande en attente avec un motif d'au moins 10 caractères ; le solde n'est pas modifié.
 
-**Why this priority**: Indispensable pour clore une demande non acceptée, mais sans effet sur le solde.
+**Why this priority**: clôt les demandes non acceptées, sans effet sur le solde.
 
-**Independent Test**: Se connecter en tant que Hugo Bernard, refuser la demande de Karim Benali avec le motif
-« Période de forte activité », puis vérifier le statut, le motif et le solde de Karim (inchangé).
+**Independent Test**: Hugo refuse la demande de Karim avec « Période de forte activité » : statut « refusée »,
+motif enregistré, solde inchangé.
 
 **Acceptance Scenarios**:
 
-1. **Given** une demande en attente de Karim Benali, **When** Hugo Bernard la refuse avec le motif « Période de
-   forte activité », **Then** la demande est « refusée », le motif, le décideur et la date de décision sont
-   enregistrés, et le solde de Karim est inchangé.
-2. **Given** une demande en attente, **When** le manager habilité la refuse sans motif ou avec un motif vide,
-   **Then** le refus est rejeté avec un message indiquant que le motif est obligatoire.
-3. **Given** une demande déjà décidée, ou un utilisateur non habilité, **When** un refus est tenté, **Then** il
-   est rejeté selon les mêmes règles que l'approbation.
+1. **[RG-13, RG-14]** **Given** une demande de Karim en attente, **When** Hugo la refuse avec « Période de forte
+   activité », **Then** elle passe « refusée » avec le motif, l'auteur et la date ; le solde de Karim est inchangé.
+2. **[RG-13]** **Given** un motif absent, ou de moins de 10 caractères espaces de début et de fin exclus (« Trop tôt »,
+   « ␣␣court␣␣ »), **When** le refus est envoyé, **Then** il est rejeté avec `LEAVE_REJECTION_REASON_REQUIRED`.
+3. **[RG-10, RG-11]** **Given** un utilisateur qui n'est pas le valideur, ou une demande déjà décidée, **When** un refus
+   est tenté, **Then** il est rejeté avec `LEAVE_APPROVER_NOT_ALLOWED` ou `LEAVE_ALREADY_DECIDED`.
 
 ---
 
 ### Edge Cases
 
-- Demande ne contenant aucun jour ouvré (week-end seul, jour férié seul) : rejetée, car elle décompterait 0 jour.
-- Demande d'un jour (début = fin) sur un jour ouvré : acceptée, 1 jour décompté.
-- Demande à cheval sur deux années ou contenant une fermeture d'entreprise (ex. 24 décembre) : les jours fériés
-  et fermetures des deux années sont exclus du décompte.
-- Lundi de Pentecôte : jour travaillé dans l'entreprise, donc décompté.
-- Demande d'un manager d'équipe : décidée par le manager de l'équipe parente (Hugo → Claire).
-- Demande de Claire Martin (manager de l'équipe racine, sans équipe parente) : elle reste « en attente » et c'est
-  Claire qui la décide elle-même (voir FR-018) ; c'est la seule exception à l'interdiction de décider sa propre demande.
-- Utilisateur courant absent ou inconnu : toute action est refusée comme non authentifiée.
-- Demande inexistante : l'approbation ou le refus signale que la demande est introuvable.
-- Deux décisions simultanées sur la même demande : une seule est appliquée, le solde n'est débité qu'une fois.
-- Type de congé inconnu ou dates mal formées : rejet avec message explicite.
+- **[RG-02]** Lundi de Pentecôte : travaillé dans l'entreprise, donc décompté. Fermetures (ex. 24 et 31 décembre)
+  exclues, y compris à cheval sur deux années.
+- **[RG-03]** Le délai se compte en jours **ouvrés** (lundi → vendredi hors fériés et fermetures), jour de soumission
+  et premier jour du congé exclus. Exemple : soumission un vendredi, début au plus tôt le mercredi suivant.
+- **[RG-11]** Deux décisions simultanées sur la même demande : une seule est appliquée, l'autre reçoit
+  `LEAVE_ALREADY_DECIDED` ; le solde n'est débité qu'une fois.
+- **[ADR-005]** Utilisateur courant absent ou invalide : 401.
+- Type de congé inconnu, date mal formée, commentaire de plus de 500 caractères : erreur de forme (400, `errors`).
 
 ## Requirements *(mandatory)*
 
@@ -146,92 +149,76 @@ modifié.
 
 **Soumission**
 
-- **FR-001**: Le système DOIT permettre à l'utilisateur courant de soumettre une demande de congé pour lui-même,
-  avec un type (congés payés ou événement familial), une date de début, une date de fin et un commentaire facultatif.
-- **FR-002**: Le système DOIT enregistrer toute nouvelle demande avec le statut « en attente » et sa date de soumission, et la restituer dans le même format que la consultation d'une demande existante.
-- **FR-003**: Le système DOIT calculer le nombre de jours décomptés comme le nombre de jours ouvrés entre les dates
-  de début et de fin incluses, en excluant samedis, dimanches, jours fériés et fermetures de l'entreprise, selon le
-  calendrier de l'entreprise déjà en place.
-- **FR-004**: Le système DOIT rejeter une demande dont la date de fin précède la date de début, dont la date de
-  début est antérieure à la date du jour, ou qui ne décompte aucun jour ouvré.
-- **FR-005**: Le système DOIT rejeter une demande qui chevauche une autre demande en attente ou approuvée du même
-  collaborateur.
-- **FR-006**: Pour les congés payés, le système DOIT rejeter une demande dont le nombre de jours dépasse le solde
-  disponible, c'est-à-dire le solde actuel diminué des jours des demandes de congés payés encore en attente du
-  même collaborateur.
-- **FR-007**: Le système NE DOIT PAS modifier le solde lors de la soumission.
+- **FR-001**: Le système DOIT permettre à l'utilisateur courant de soumettre une demande pour lui-même (type, date
+  de début, date de fin, commentaire facultatif).
+- **FR-002** *(RG-07)*: Toute demande créée a le statut « en attente » et l'instant de la requête comme date de
+  soumission ; elle est restituée au format de la consultation d'une demande.
+- **FR-003** *(RG-02, ADR-004)*: Le nombre de jours est le nombre de jours **ouvrables** entre les deux dates incluses
+  (lundi → samedi, hors fériés et fermetures fournis par le calendrier de l'entreprise).
+- **FR-004** *(RG-01, RG-02)*: Une demande dont la fin précède le début, dont le début est passé, ou sans jour
+  décompté, DOIT être refusée avec `LEAVE_INVALID_PERIOD`.
+- **FR-005** *(RG-03, RG-04)*: Une demande de congés payés DOIT laisser au moins 2 jours ouvrés entre le jour de
+  soumission (exclu) et le premier jour (exclu), sinon `LEAVE_NOTICE_TOO_SHORT` ; les événements familiaux en sont
+  exemptés.
+- **FR-006** *(RG-05)*: Une demande de congés payés DOIT être refusée avec `LEAVE_INSUFFICIENT_BALANCE` si ses jours
+  dépassent le solde disponible (solde CP − jours des autres demandes CP en attente).
+- **FR-007** *(RG-06)*: Une demande qui chevauche une demande en attente ou approuvée du même collaborateur DOIT être
+  refusée avec `LEAVE_OVERLAP`.
+- **FR-008** *(RG-12)*: La soumission NE DOIT PAS modifier le solde.
+- **FR-009** *(Circuit de validation)*: Un demandeur sans valideur dans l'application (manager d'une équipe sans
+  équipe parente) NE PEUT PAS soumettre : `LEAVE_APPROVER_NOT_ALLOWED`.
 
-**Habilitation**
+**Valideur**
 
-- **FR-008**: La personne habilitée à décider une demande DOIT être le manager de l'équipe du demandeur ; si le
-  demandeur est lui-même ce manager, c'est le manager de l'équipe parente ; s'il n'y a pas d'équipe parente, c'est
-  le demandeur lui-même (FR-018).
-- **FR-009**: Le système DOIT interdire à quiconque de décider sa propre demande (sauf cas de FR-018), et à tout
-  utilisateur non habilité de décider une demande.
-- **FR-018**: Le manager d'une équipe sans équipe parente (Direction) DOIT être la personne habilitée à décider ses
-  propres demandes : elles apparaissent dans sa liste de demandes à décider et il peut les approuver ou les refuser
-  selon les mêmes règles que toute autre demande.
+- **FR-010** *(RG-10, Circuit de validation)*: Le valideur d'une demande est le manager de l'équipe du demandeur ; si
+  le demandeur est ce manager, c'est le manager de l'équipe parente. Personne ne décide sa propre demande ; pas de
+  délégation.
 
-**Consultation des demandes à décider**
+**Consultation**
 
-- **FR-010**: Le système DOIT fournir à l'utilisateur courant la liste des demandes en attente qu'il est habilité
-  à décider, et uniquement celles-ci.
+- **FR-011**: Le système DOIT fournir à l'utilisateur courant la liste des demandes en attente dont il est le
+  valideur, et uniquement celles-ci.
 
 **Décision**
 
-- **FR-011**: Le système DOIT permettre à la personne habilitée d'approuver une demande en attente ; la demande
-  passe « approuvée » avec l'auteur et la date de la décision.
-- **FR-012**: À l'approbation d'une demande de congés payés, le système DOIT diminuer le solde du demandeur du
-  nombre de jours décomptés, dans la même opération que le changement de statut ; l'approbation DOIT être refusée
-  si elle rendait le solde négatif.
-- **FR-013**: L'approbation d'une demande « événement familial » NE DOIT PAS modifier le solde.
-- **FR-014**: Le système DOIT permettre à la personne habilitée de refuser une demande en attente avec un motif
-  obligatoire et non vide ; la demande passe « refusée » avec le motif, l'auteur et la date de la décision, sans
-  effet sur le solde.
-- **FR-015**: Le système DOIT refuser toute décision sur une demande qui n'est plus en attente, sans aucune
-  modification.
-- **FR-016**: La date de décision et la date de soumission DOIVENT provenir de l'horloge du système.
+- **FR-012** *(RG-10, RG-11)*: Seul le valideur peut décider (`LEAVE_APPROVER_NOT_ALLOWED`), et seulement une demande en
+  attente (`LEAVE_ALREADY_DECIDED`) ; une décision est définitive.
+- **FR-013** *(RG-12)*: L'approbation passe la demande « approuvée » et, pour des congés payés, débite le solde du
+  nombre de jours dans la même opération ; elle est refusée (`LEAVE_INSUFFICIENT_BALANCE`) si le solde devenait négatif.
+- **FR-014** *(RG-13)*: Le refus exige un motif d'au moins 10 caractères (espaces de début et de fin exclus), sinon
+  `LEAVE_REJECTION_REASON_REQUIRED` ; la demande passe « refusée » et le solde n'est pas modifié.
+- **FR-015** *(RG-14)*: La date et l'auteur de la décision sont enregistrés ; les dates proviennent de l'horloge du système.
 
 **Erreurs**
 
-- **FR-017**: Chaque refus DOIT être signalé avec une catégorie distincte et un message compréhensible : entrée
-  invalide, non authentifié, action interdite, demande introuvable, conflit d'état ou de solde.
+- **FR-016** *(ADR-003, Codes d'erreur)*: Toute erreur métier est un ProblemDetails avec l'extension `code` du
+  référentiel et le statut associé : 422 (règle de gestion), 403 (`LEAVE_APPROVER_NOT_ALLOWED`), 409
+  (`LEAVE_ALREADY_DECIDED`), 404 (`LEAVE_NOT_FOUND`). Les erreurs de forme restent en 400 avec `errors`, sans `code`.
 
 ### Key Entities
 
-- **Demande de congé**: demandeur, type, dates de début et de fin, nombre de jours décomptés, statut (en attente,
-  approuvée, refusée), commentaire, motif de refus, date de soumission, date et auteur de la décision.
-- **Collaborateur**: appartient à une équipe, possède un solde de congés payés en jours.
-- **Équipe**: a un manager (membre de l'équipe) et éventuellement une équipe parente ; détermine qui est habilité
-  à décider.
-- **Calendrier de l'entreprise**: jours fériés et fermetures, utilisé pour le décompte des jours.
+- **Demande de congé**: demandeur, type, dates, jours décomptés, statut, commentaire, motif de refus, date de
+  soumission, date et auteur de la décision.
+- **Collaborateur**: équipe, solde CP (en jours ouvrables).
+- **Équipe**: manager, équipe parente éventuelle ; détermine le valideur.
+- **Calendrier de l'entreprise**: jours fériés et fermetures (source unique, ADR-004).
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 100 % des scénarios d'acceptation ci-dessus sont couverts par des tests automatisés qui passent.
-- **SC-002**: Après toute séquence d'approbations et de refus, le solde de chaque collaborateur est égal à son
-  solde initial moins la somme des jours des demandes de congés payés approuvées dans cette séquence, et n'est
-  jamais négatif.
-- **SC-003**: Aucune demande ne peut être décidée par une personne autre que la personne habilitée (0 cas sur
-  l'ensemble des combinaisons demandeur/décideur des données de démonstration).
-- **SC-004**: Un collaborateur soumet une demande, et son manager la décide, en une seule action chacun, avec un
-  résultat visible immédiatement.
-- **SC-005**: Les clients existants (front et autres équipes) utilisent la fonctionnalité sans adaptation, le
-  contrat d'échange imposé étant respecté à l'identique.
+- **SC-001**: 100 % des scénarios d'acceptation sont couverts par des tests automatisés qui passent, chacun citant
+  les `RG-xx` qu'il couvre.
+- **SC-002**: Après toute séquence de décisions, chaque solde vaut le solde initial moins les jours des congés payés
+  approuvés, et n'est jamais négatif.
+- **SC-003**: 0 décision possible par une autre personne que le valideur, sur toutes les combinaisons des données de
+  démonstration.
+- **SC-004**: 100 % des erreurs métier portent un `code` du référentiel avec le statut HTTP attendu.
+- **SC-005**: Le front et les applications partenaires utilisent la fonctionnalité sans adaptation du contrat d'API.
 
 ## Assumptions
 
-- Le contrat d'échange (routes, formats, codes de succès) est imposé par l'énoncé de l'exercice (`ENONCE.md`,
-  partie 1) et n'est pas négociable.
-- L'utilisateur courant est identifié par le mécanisme existant ; aucune authentification nouvelle n'est requise.
-- Le solde n'existe que pour les congés payés ; les congés « événement familial » ne sont pas plafonnés ni
-  décomptés du solde.
-- Le solde est débité à l'approbation et non à la soumission, comme le montrent les données de démonstration
-  (Yasmine Haddad : 25 jours après une demande de 5 jours approuvée).
-- Seules les journées entières sont gérées (pas de demi-journées).
-- Sont hors périmètre : annulation ou modification d'une demande, délégation de décision, notifications,
-  demandes saisies pour le compte d'un tiers, écran front (partie 2).
-- Les pratiques de l'équipe s'appliquent : constitution du projet, réutilisation des services existants
-  (notamment le calendrier des jours fériés) et format d'erreur standard du projet.
+- Le contrat d'API (routes, formats, codes de succès) est celui d'`ENONCE.md` ; les statuts d'erreur suivent l'ADR-003.
+- **Écart à faire valider par la DRH** : le référentiel des codes étant fermé, le refus de soumission pour la
+  Direction (FR-009) réutilise `LEAVE_APPROVER_NOT_ALLOWED` (403), faute de code dédié.
+- Hors périmètre (wiki) : annulation, demi-journées, report de solde, acquisition mensuelle ; délégation de décision.

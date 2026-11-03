@@ -10,19 +10,29 @@ public class NotFoundException(string resource, object key)
 public class UnauthenticatedException()
     : Exception("En-tête X-User-Id absent ou invalide.");
 
-/// <summary>L'utilisateur courant n'est pas autorisé à effectuer l'action (403).</summary>
-public class ForbiddenException(string message) : Exception(message);
-
-/// <summary>L'action est incompatible avec l'état actuel des données (409).</summary>
-public class ConflictException(string code, string message) : Exception(message)
+/// <summary>Nature d'une erreur métier ; le gestionnaire global en déduit le statut HTTP (ADR-003).</summary>
+public enum BusinessErrorKind
 {
-    public string Code { get; } = code;
+    /// <summary>Règle de gestion non respectée (422).</summary>
+    RuleViolation,
+
+    /// <summary>Action interdite à cet utilisateur (403).</summary>
+    Forbidden,
+
+    /// <summary>Ressource absente (404).</summary>
+    NotFound,
+
+    /// <summary>Conflit d'état (409).</summary>
+    Conflict,
 }
 
-public static class ConflictCodes
+/// <summary>
+/// Erreur métier porteuse d'un code stable du référentiel « Codes d'erreur » du wiki (ADR-003).
+/// Le message est destiné aux journaux et au champ <c>detail</c> ; les clients se fondent uniquement sur le code.
+/// </summary>
+public class BusinessException(string code, BusinessErrorKind kind, string title, string message) : Exception(message)
 {
-    public const string NotPending = nameof(NotPending);
-    public const string Overlap = nameof(Overlap);
-    public const string InsufficientBalance = nameof(InsufficientBalance);
-    public const string ConcurrentDecision = nameof(ConcurrentDecision);
+    public string Code { get; } = code;
+    public BusinessErrorKind Kind { get; } = kind;
+    public string Title { get; } = title;
 }

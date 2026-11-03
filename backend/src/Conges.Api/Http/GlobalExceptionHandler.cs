@@ -36,18 +36,19 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
                 Title = "Utilisateur non identifié.",
                 Detail = unauthenticated.Message,
             },
-            ForbiddenException forbidden => new ProblemDetails
+            BusinessException business => new ProblemDetails
             {
-                Status = StatusCodes.Status403Forbidden,
-                Title = "Action non autorisée.",
-                Detail = forbidden.Message,
-            },
-            ConflictException conflict => new ProblemDetails
-            {
-                Status = StatusCodes.Status409Conflict,
-                Title = "Conflit avec l'état actuel.",
-                Detail = conflict.Message,
-                Extensions = { ["code"] = conflict.Code },
+                Status = business.Kind switch
+                {
+                    BusinessErrorKind.Forbidden => StatusCodes.Status403Forbidden,
+                    BusinessErrorKind.NotFound => StatusCodes.Status404NotFound,
+                    BusinessErrorKind.Conflict => StatusCodes.Status409Conflict,
+                    _ => StatusCodes.Status422UnprocessableEntity,
+                },
+                Type = $"https://conges.example/errors/{business.Code.ToLowerInvariant().Replace('_', '-')}",
+                Title = business.Title,
+                Detail = business.Message,
+                Extensions = { ["code"] = business.Code },
             },
             _ => new ProblemDetails
             {

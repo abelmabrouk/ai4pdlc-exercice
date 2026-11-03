@@ -346,3 +346,17 @@ Phases 1 à 3 (US1) : l'écran liste les demandes à décider. **Arrêt et valid
 
 - En cas de comportement inattendu, utiliser `/superpowers:systematic-debugging` avant toute correction.
 - Faire un commit par phase terminée.
+
+---
+
+## Phase 8: Alignement sur le wiki (révision du 2026-11-03)
+
+TDD : chaque test `node --test` vu en échec avant le code.
+
+- [x] T020 Spec révisée avec « Références », « Composants utilisés », traçabilité RG, libellés et data-testid du wiki (`specs/002-pending-requests-screen/spec.md`)
+- [x] T021 Tests puis `errorMessage` (code → libellé de *Messages*, jamais `title`/`detail`) dans `frontend/src/app/core/api-errors.spec.ts` et `frontend/src/app/core/api-errors.ts`
+- [x] T022 Tests puis filtres type + recherche insensible à la casse dans `frontend/src/app/features/pending-requests/pending-filters.spec.ts` et `pending-filters.ts`
+- [x] T023 Tests puis libellés et message du dialogue de refus dans `frontend/src/app/features/pending-requests/pending-messages.spec.ts` et `pending-messages.ts` ; suppression de `pending-decision.ts`
+- [x] T024 Composant réécrit selon la maquette dans `frontend/src/app/features/pending-requests/pending-requests-page.ts` et `.html` : colonne Statut, approbation en un clic, refus ≥ 10 caractères, boutons de ligne désactivés, data-testid du wiki, squelette de 3 lignes, icône 🔍
+- [x] T025 `npm run test:unit` (18/18), `ng build`, `lint:styles`, `backend-tests` (73/73)
+- [x] T026 Scénarios navigateur 1 à 11 de `specs/002-pending-requests-screen/quickstart.md`

@@ -1,128 +1,109 @@
-<h1>Demandes en attente</h1>
+<section data-testid="pending-requests-page">
+  <h1>Demandes en attente</h1>
 
-<div class="toolbar" role="search" aria-label="Filtrer les demandes">
-  <label class="field">
-    <span class="field__label">Collaborateur</span>
-    <input
-      class="input"
-      type="search"
-      data-testid="pending-filter-employee"
-      [value]="filters().employee"
-      (input)="setFilter('employee', $any($event.target).value)"
-    />
-  </label>
+  <div class="toolbar">
+    <label class="field">
+      <span class="field__label">{{ messages.typeLabel }}</span>
+      <select
+        class="select"
+        data-testid="filter-type"
+        [value]="filters().type"
+        (change)="setFilter('type', $any($event.target).value)"
+      >
+        <option value="">{{ messages.allTypes }}</option>
+        @for (t of leaveTypes; track t[0]) {
+          <option [value]="t[0]">{{ t[1] }}</option>
+        }
+      </select>
+    </label>
 
-  <label class="field">
-    <span class="field__label">Type</span>
-    <select
-      class="select"
-      data-testid="pending-filter-type"
-      [value]="filters().type"
-      (change)="setFilter('type', $any($event.target).value)"
+    <label class="field">
+      <span class="field__label">{{ messages.searchLabel }}</span>
+      <input
+        class="input"
+        type="search"
+        data-testid="filter-search"
+        [placeholder]="messages.searchPlaceholder"
+        [value]="filters().search"
+        (input)="setFilter('search', $any($event.target).value)"
+      />
+    </label>
+  </div>
+
+  @if (requests.isLoading()) {
+    <div class="skeleton" aria-busy="true" data-testid="pending-loading">
+      <div class="skeleton__row"></div>
+      <div class="skeleton__row"></div>
+      <div class="skeleton__row"></div>
+    </div>
+  } @else if (requests.error()) {
+    <div class="state-panel state-panel--error" data-testid="pending-error">
+      <p>{{ messages.loadError }}</p>
+      <button type="button" class="btn btn--secondary" data-testid="btn-retry" (click)="requests.reload()">
+        {{ messages.retry }}
+      </button>
+    </div>
+  } @else if (!requests.value()?.length) {
+    <div class="state-panel" data-testid="pending-empty">
+      <span class="state-panel__icon" aria-hidden="true">✅</span>
+      <p>{{ messages.empty }}</p>
+    </div>
+  } @else if (!filtered().length) {
+    <div class="state-panel" data-testid="pending-no-match">
+      <span class="state-panel__icon" aria-hidden="true">🔍</span>
+      <p>{{ messages.noMatch }}</p>
+    </div>
+  } @else {
+    <app-data-table
+      [columns]="columns"
+      [rows]="filtered()"
+      [trackBy]="trackById"
+      [rowTestId]="rowTestId"
+      caption="Demandes en attente de décision"
     >
-      <option value="">Tous les types</option>
-      @for (t of leaveTypes; track t[0]) {
-        <option [value]="t[0]">{{ t[1] }}</option>
-      }
-    </select>
-  </label>
-
-  <label class="field">
-    <span class="field__label">Du</span>
-    <input
-      class="input"
-      type="date"
-      data-testid="pending-filter-from"
-      [value]="filters().from"
-      (input)="setFilter('from', $any($event.target).value)"
-    />
-  </label>
-
-  <label class="field">
-    <span class="field__label">Au</span>
-    <input
-      class="input"
-      type="date"
-      data-testid="pending-filter-to"
-      [value]="filters().to"
-      (input)="setFilter('to', $any($event.target).value)"
-    />
-  </label>
-
-  @if (hasFilters()) {
-    <button type="button" class="btn btn--secondary" data-testid="pending-filters-clear" (click)="clearFilters()">
-      Effacer les filtres
-    </button>
+      <ng-template appCell="period" let-row>
+        du {{ row.startDate | date: 'dd/MM/yyyy' }} au {{ row.endDate | date: 'dd/MM/yyyy' }}
+      </ng-template>
+      <ng-template appCell="status" let-row>
+        <app-status-badge [status]="row.status" />
+      </ng-template>
+      <ng-template appCell="actions" let-row>
+        <div class="actions">
+          <button
+            type="button"
+            class="btn btn--primary btn--sm"
+            [attr.data-testid]="'btn-approve-' + row.id"
+            [disabled]="busyId() === row.id"
+            (click)="approve(row)"
+          >
+            {{ messages.approve }}
+          </button>
+          <button
+            type="button"
+            class="btn btn--danger btn--sm"
+            [attr.data-testid]="'btn-reject-' + row.id"
+            [disabled]="busyId() === row.id"
+            (click)="openReject(row)"
+          >
+            {{ messages.reject }}
+          </button>
+        </div>
+      </ng-template>
+    </app-data-table>
   }
-</div>
+</section>
 
-@if (requests.isLoading()) {
-  <div class="skeleton" aria-busy="true">
-    <div class="skeleton__row"></div>
-    <div class="skeleton__row"></div>
-  </div>
-} @else if (requests.error()) {
-  <div class="state-panel state-panel--error" data-testid="pending-error">
-    <p>Impossible de charger les demandes en attente.</p>
-    <button type="button" class="btn btn--secondary" (click)="requests.reload()">Réessayer</button>
-  </div>
-} @else if (requests.value()?.length && !filtered().length) {
-  <div class="state-panel" data-testid="pending-no-match">
-    <p>Aucune demande ne correspond aux filtres.</p>
-    <button type="button" class="btn btn--secondary" (click)="clearFilters()">Effacer les filtres</button>
-  </div>
-} @else if (requests.value()?.length) {
-  <app-data-table
-    [columns]="columns"
-    [rows]="filtered()"
-    [trackBy]="trackById"
-    [rowTestId]="rowTestId"
-    caption="Demandes en attente de décision"
-  >
-    <ng-template appCell="period" let-row>
-      du {{ row.startDate | date: 'dd/MM/yyyy' }} au {{ row.endDate | date: 'dd/MM/yyyy' }}
-    </ng-template>
-    <ng-template appCell="actions" let-row>
-      <div class="actions">
-        <button
-          type="button"
-          class="btn btn--primary btn--sm"
-          [attr.data-testid]="'approve-' + row.id"
-          [attr.aria-label]="'Approuver la demande de ' + row.employeeName"
-          (click)="open('approve', row)"
-        >
-          Approuver
-        </button>
-        <button
-          type="button"
-          class="btn btn--danger btn--sm"
-          [attr.data-testid]="'reject-' + row.id"
-          [attr.aria-label]="'Refuser la demande de ' + row.employeeName"
-          (click)="open('reject', row)"
-        >
-          Refuser
-        </button>
-      </div>
-    </ng-template>
-  </app-data-table>
-} @else {
-  <div class="state-panel" data-testid="pending-empty">
-    <span class="state-panel__icon" aria-hidden="true">✅</span>
-    <p>Aucune demande en attente.</p>
-  </div>
-}
-
-@if (pendingDecision(); as decision) {
+@if (rejecting(); as request) {
   <app-confirm-dialog
     [open]="true"
-    [title]="decision.kind === 'approve' ? 'Approuver la demande' : 'Refuser la demande'"
-    [message]="decisionMessage(decision.request)"
-    [confirmLabel]="decision.kind === 'approve' ? 'Approuver' : 'Refuser'"
-    [tone]="decision.kind === 'approve' ? 'default' : 'danger'"
-    [reasonLabel]="decision.kind === 'reject' ? 'Motif du refus' : undefined"
-    [reasonMinLength]="decision.kind === 'reject' ? 1 : 0"
-    [busy]="busy()"
-    (confirmed)="decide($event)"
-    (cancelled)="close()"
+    [title]="messages.rejectDialogTitle"
+    [message]="rejectDialogMessage(request)"
+    [confirmLabel]="messages.rejectDialogConfirm"
+    tone="danger"
+    [reasonLabel]="messages.rejectDialogReason"
+    [reasonMinLength]="reasonMinLength"
+    [busy]="busyId() === request.id"
+    (confirmed)="confirmReject($event)"
+    (cancelled)="cancelReject()"
   />
 }

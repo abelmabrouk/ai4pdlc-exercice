@@ -1,5 +1,8 @@
 # Research — Écran « Demandes en attente »
 
+> **Révision du 2026-11-03 — alignement sur le wiki.** La section « Révision wiki » en fin de document fait foi ;
+> elle remplace R2, R4 et R5.
+
 Pile imposée (Angular 20, constitution VI) ; aucune inconnue technique. Décisions de conception :
 
 ## R1 — Source des données et rechargement
@@ -64,3 +67,18 @@ Pile imposée (Angular 20, constitution VI) ; aucune inconnue technique. Décisi
   exécutables par Node sans Angular.
 - **Alternatives** : Vitest + jsdom via `@angular/build:unit-test` (outillage nouveau, écarté) ; aucun test front
   (pas de TDD possible, écarté).
+
+## Révision wiki (fait foi)
+
+- **W1 — Approbation (Interactions).** Un clic, sans dialogue. Pendant l'appel, `busyId` désactive les deux boutons de
+  la ligne. Succès : toast « Demande approuvée. » et retrait local de la ligne (`requests.update`) ; échec : toast et
+  `reload()`.
+- **W2 — Refus (Interactions, RG-13).** `ConfirmDialog` uniquement pour le refus : `tone="danger"`,
+  `[reasonMinLength]="10"`, message `rejectDialogMessage()` ; `busy` pendant l'appel ; fermeture après la réponse.
+- **W3 — Erreurs (ADR-003, Messages).** `core/api-errors.ts` : table code → libellé de la page *Messages*, libellé
+  générique sinon ; `title` et `detail` ne sont jamais affichés. Placé dans `core/` car valable pour tous les écrans.
+- **W4 — Filtres (maquette, Interactions).** Type et recherche collaborateur seulement, insensible à la casse
+  (pas d'accents, pas de période, pas de bouton « Effacer ») : `pending-filters.ts`.
+- **W5 — Libellés.** `pending-messages.ts` regroupe les libellés de l'écran, repris à l'identique du wiki et vérifiés
+  par test.
+- **W6 — data-testid.** Ceux de la page *Conventions data-testid* (`leave-row-{id}`, `btn-approve-{id}`, …).

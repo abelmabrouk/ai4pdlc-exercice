@@ -72,7 +72,7 @@ internal sealed class LeaveRequestQueries(
             .AsNoTracking()
             .Include(r => r.Employee!).ThenInclude(e => e.Team)
             .SingleOrDefaultAsync(r => r.Id == id, ct)
-            ?? throw new NotFoundException("Demande de congé", id);
+            ?? throw LeaveErrors.NotFound(id);
 
         return request.ToDto();
     }

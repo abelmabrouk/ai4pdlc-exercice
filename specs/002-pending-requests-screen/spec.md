@@ -2,187 +2,187 @@
 
 **Feature Branch**: `julien-guillaume-damien`
 
-**Created**: 2026-11-03
+**Created**: 2026-11-03 · **Révisée** : 2026-11-03 (alignement sur le wiki et le design system « Ardoise »)
 
 **Status**: Draft
 
 **Input**: User description: "Un manager dispose d'un écran « Demandes en attente » qui liste les demandes qu'il doit décider. Il peut les filtrer, puis les approuver ou les refuser. Le tout en respectant les pratiques de l'équipe."
 
+## Références
+
+Documentation de l'équipe : https://github.com/abelmabrouk/ai4pdlc-exercice/wiki (elle fait foi, ADR-006).
+
+| Référence | Objet |
+|---|---|
+| ADR-003 | Le front se fonde uniquement sur `code` ; jamais sur `title` ni `detail` |
+| ADR-005 | Utilisateur courant (`X-User-Id`, sélecteur « Connecté en tant que ») |
+| ADR-006 | Rédaction des specs (Références, traçabilité RG, codes d'erreur) |
+| RG-10, RG-11 | Seul le valideur décide ; une demande décidée ne l'est qu'une fois |
+| RG-12 | Approbation |
+| RG-13 | Refus : motif d'au moins 10 caractères |
+| Circuit de validation | La liste ne contient que les demandes dont l'utilisateur est le valideur |
+| Codes d'erreur / Messages | Libellé affiché pour chaque code |
+| Design system, Composants, Interactions, Design tokens | Règles de l'écran |
+| Conventions data-testid | Attributs de recette QA |
+| Maquette « Demandes en attente » | Rendu attendu |
+| `specs/001-leave-request-approval` | API consommée (inchangée) |
+
+## Composants utilisés
+
+| Composant / classe | Usage |
+|---|---|
+| `app-data-table` (`DataTable`, `DataTableCell`) | Tableau des demandes, `rowTestId` = `leave-row-{id}` |
+| `app-status-badge` | Colonne « Statut » |
+| `app-confirm-dialog` | Refus uniquement : `tone="danger"`, `reasonLabel`, `[reasonMinLength]="10"`, `busy` |
+| `ToastService` (`app-toast` déjà dans le shell) | Retours de succès et d'erreur |
+| `.toolbar`, `.field`, `.field__label`, `.select`, `.input` | Barre de filtres |
+| `.btn--primary` / `.btn--danger` + `.btn--sm` ; `.btn--secondary` | Actions de ligne ; « Réessayer » |
+| `.skeleton` (3 × `.skeleton__row`), `.state-panel` (+ `--error`), `.state-panel__icon` | États d'écran |
+
+**Règles d'interaction appliquées** (page *Interactions*) : un seul état d'écran à la fois ; approbation en un clic
+sans confirmation ; refus jamais en un clic ; boutons de la ligne désactivés pendant l'appel ; après un succès,
+toast et disparition de la ligne ; après un échec, toast du libellé du `code` puis rechargement ; filtres dans la
+`.toolbar`, appliqués immédiatement sur la liste chargée, recherche insensible à la casse ; jamais de message
+technique.
+
+**Libellés** : page *Messages*, section « Écran Demandes en attente » et table des codes d'erreur, repris à
+l'identique.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Voir les demandes à décider (Priority: P1)
 
-Un manager ouvre l'écran « Demandes en attente » depuis le menu et voit la liste des demandes en attente qu'il est
-habilité à décider : collaborateur, équipe, type de congé, période, nombre de jours et commentaire.
+Le manager ouvre « Demandes en attente » et voit les demandes dont il est le valideur.
 
-**Why this priority**: C'est le point d'entrée de l'écran ; sans liste, rien ne peut être filtré ni décidé.
+**Why this priority**: point d'entrée de l'écran.
 
-**Independent Test**: Se connecter en tant que Hugo Bernard, ouvrir « Demandes en attente » et vérifier que les
-demandes de Lea Petit, Karim Benali et Ines Moreau sont listées, et aucune autre.
+**Independent Test**: en tant que Hugo Bernard, 3 lignes : Lea Petit, Karim Benali, Ines Moreau.
 
 **Acceptance Scenarios**:
 
-1. **Given** Hugo Bernard connecté, **When** il ouvre l'écran, **Then** il voit les 3 demandes en attente de son
-   équipe (Lea, Karim, Ines), triées par date de début, avec pour chacune le collaborateur, l'équipe, le type, la
-   période, le nombre de jours et le commentaire.
-2. **Given** Claire Martin connectée, **When** elle ouvre l'écran, **Then** elle voit la demande de Hugo Bernard.
-3. **Given** un manager sans demande à décider, **When** il ouvre l'écran, **Then** un message indique qu'il n'y a
-   aucune demande en attente.
-4. **Given** le chargement en cours, **When** l'écran s'affiche, **Then** un indicateur de chargement est visible ;
-   **Given** un échec de chargement, **Then** un message d'erreur et un bouton « Réessayer » sont proposés.
-5. **Given** l'écran ouvert en tant que Hugo, **When** l'utilisateur change l'identité « Connecté en tant que »
-   pour Sophie Laurent, **Then** la liste se recharge et affiche les demandes de l'équipe Support.
+1. **[RG-10, Circuit de validation]** **Given** Hugo connecté, **When** il ouvre l'écran, **Then** il voit les 3
+   demandes de son équipe avec les colonnes Collaborateur, Équipe, Type, Période (« du jj/mm/aaaa au jj/mm/aaaa »),
+   Jours, Statut (pastille « En attente ») et Actions.
+2. **Given** Claire Martin connectée, **When** elle ouvre l'écran, **Then** elle voit la demande de Hugo.
+3. **Given** le chargement en cours, **Then** seul le squelette (3 lignes, `pending-loading`) est affiché.
+4. **Given** une liste vide, **Then** seul le panneau ✅ « Aucune demande en attente. » (`pending-empty`) est affiché.
+5. **Given** un échec de chargement, **Then** seul le panneau d'erreur « Impossible de charger les demandes en
+   attente. » (`pending-error`) est affiché, avec « Réessayer » (`btn-retry`) qui relance le chargement.
+6. **Given** l'écran ouvert, **When** l'utilisateur change d'identité, **Then** la liste se recharge.
 
 ---
 
 ### User Story 2 - Approuver une demande (Priority: P1)
 
-Le manager approuve une demande depuis la liste, après confirmation. La demande disparaît de la liste et une
-notification confirme l'approbation.
+**Why this priority**: action principale, en un seul clic.
 
-**Why this priority**: C'est l'action principale attendue de l'écran.
-
-**Independent Test**: En tant que Hugo, approuver la demande de Lea, confirmer, puis vérifier qu'elle a quitté la
-liste et que « Mes demandes » de Lea l'affiche « Approuvée ».
+**Independent Test**: Hugo clique « Approuver » sur Lea : toast « Demande approuvée. », la ligne disparaît.
 
 **Acceptance Scenarios**:
 
-1. **Given** la demande de Lea dans la liste, **When** Hugo clique sur « Approuver », **Then** une fenêtre de
-   confirmation rappelle le collaborateur, la période et le nombre de jours.
-2. **Given** la fenêtre de confirmation ouverte, **When** Hugo confirme, **Then** la demande est approuvée, elle
-   disparaît de la liste et une notification de succès s'affiche.
-3. **Given** la fenêtre de confirmation ouverte, **When** Hugo annule (bouton ou touche Échap), **Then** rien n'est
-   modifié.
-4. **Given** une décision en cours d'envoi, **When** elle n'est pas terminée, **Then** les boutons de la fenêtre
-   sont désactivés pour empêcher un double envoi.
-5. **Given** une approbation refusée par le système (solde insuffisant, demande déjà décidée, droits), **When**
-   Hugo confirme, **Then** une notification d'erreur affiche le message explicatif et la liste est rechargée.
+1. **[RG-12]** **Given** la ligne de Lea, **When** Hugo clique « Approuver » (`btn-approve-{id}`), **Then** la demande
+   est approuvée sans confirmation, un toast de succès « Demande approuvée. » s'affiche et la ligne disparaît.
+2. **Given** l'appel en cours, **Then** les boutons « Approuver » et « Refuser » de cette ligne sont désactivés.
+3. **[RG-11]** **Given** une demande déjà traitée ailleurs, **When** Hugo l'approuve, **Then** un toast d'erreur
+   « Cette demande a déjà été traitée. » (`LEAVE_ALREADY_DECIDED`) s'affiche et la liste est rechargée.
+4. **[RG-12]** **Given** un solde devenu insuffisant, **Then** le toast d'erreur est « Le solde de congés est
+   insuffisant. » (`LEAVE_INSUFFICIENT_BALANCE`).
 
 ---
 
 ### User Story 3 - Refuser une demande avec un motif (Priority: P2)
 
-Le manager refuse une demande en saisissant un motif obligatoire. La demande disparaît de la liste et une
-notification confirme le refus.
+**Why this priority**: clôt les demandes non acceptées ; jamais en un clic.
 
-**Why this priority**: Indispensable pour clore les demandes non acceptées, mais moins fréquent que l'approbation.
-
-**Independent Test**: En tant que Hugo, refuser la demande de Karim avec le motif « Période de forte activité »,
-puis vérifier qu'elle a quitté la liste et que « Mes demandes » de Karim l'affiche « Refusée » avec ce motif.
+**Independent Test**: Hugo refuse Karim avec « Période de forte activité » : toast « Demande refusée. », la ligne
+disparaît.
 
 **Acceptance Scenarios**:
 
-1. **Given** la demande de Karim dans la liste, **When** Hugo clique sur « Refuser », **Then** une fenêtre demande
-   un motif de refus.
-2. **Given** la fenêtre de refus ouverte, **When** le motif est vide ou ne contient que des espaces, **Then** le
-   bouton de confirmation est désactivé.
-3. **Given** un motif saisi, **When** Hugo confirme, **Then** la demande est refusée avec ce motif, disparaît de la
-   liste et une notification de succès s'affiche.
-4. **Given** un refus rejeté par le système, **When** Hugo confirme, **Then** une notification d'erreur affiche le
-   message explicatif et la liste est rechargée.
+1. **Given** la ligne de Karim, **When** Hugo clique « Refuser » (`btn-reject-{id}`), **Then** le dialogue « Refuser la
+   demande » s'ouvre avec le message « Demande de Karim Benali du 14/12/2026 au 16/12/2026. » et le champ « Motif du
+   refus ».
+2. **[RG-13]** **Given** le dialogue ouvert, **When** le motif fait moins de 10 caractères (espaces de bord exclus),
+   **Then** le bouton « Refuser » reste désactivé et l'indicateur « n / 10 caractères minimum » est affiché.
+3. **[RG-13, RG-14]** **Given** un motif valide, **When** Hugo confirme, **Then** les boutons du dialogue sont
+   désactivés pendant l'appel, puis le dialogue se ferme, un toast « Demande refusée. » s'affiche et la ligne disparaît.
+4. **Given** un refus rejeté par l'API, **Then** le dialogue se ferme, un toast d'erreur affiche le libellé du `code`
+   et la liste est rechargée.
+5. **Given** le dialogue ouvert, **When** Hugo annule (bouton, Échap, clic sur le fond), **Then** rien n'est envoyé.
 
 ---
 
 ### User Story 4 - Filtrer la liste (Priority: P2)
 
-Le manager affine la liste par collaborateur, par type de congé et par période, pour traiter les demandes par lot.
+**Why this priority**: affiner la liste ; l'écran reste utilisable sans filtre.
 
-**Why this priority**: Utile dès que la liste grandit ; l'écran reste utilisable sans filtre.
-
-**Independent Test**: En tant que Hugo, filtrer sur le collaborateur « Karim » : seule la demande de Karim reste ;
-effacer le filtre : les 3 demandes réapparaissent.
+**Independent Test**: Hugo saisit « KAR » : seule la ligne de Karim reste.
 
 **Acceptance Scenarios**:
 
-1. **Given** les 3 demandes de l'équipe Produit, **When** Hugo saisit « kar » dans le filtre collaborateur, **Then**
-   seule la demande de Karim Benali reste affichée (recherche insensible à la casse et aux accents, sur le nom
-   complet).
-2. **Given** des demandes de types différents, **When** le manager choisit le type « Événement familial », **Then**
-   seules les demandes de ce type restent affichées ; « Tous les types » les réaffiche toutes.
-3. **Given** une période « du » / « au » saisie, **When** le filtre s'applique, **Then** seules les demandes dont la
-   période chevauche cet intervalle restent affichées ; une borne seule filtre d'un seul côté.
-4. **Given** des filtres actifs ne retenant aucune demande, **When** la liste est vide, **Then** un message indique
-   qu'aucune demande ne correspond aux filtres, avec une action « Effacer les filtres ».
-5. **Given** des filtres actifs, **When** le manager décide une demande, **Then** les filtres sont conservés.
-6. **Given** des filtres actifs, **When** le manager clique sur « Effacer les filtres », **Then** toutes les
-   demandes à décider réapparaissent.
+1. **Given** les 3 demandes de Produit, **When** Hugo saisit « KAR » dans « Collaborateur » (`filter-search`,
+   placeholder « Rechercher un collaborateur »), **Then** seule la ligne de Karim reste (recherche insensible à la casse).
+2. **Given** Sophie Laurent et des demandes de types différents, **When** elle choisit « Événement familial » dans
+   « Type » (`filter-type`), **Then** seule la demande de Thomas Roux reste ; « Tous les types » les réaffiche toutes.
+3. **Given** des filtres ne retenant aucune demande, **Then** seul le panneau 🔍 « Aucune demande ne correspond aux
+   filtres. » (`pending-no-match`) est affiché.
+4. **Given** des filtres actifs, **When** une demande est décidée, **Then** les filtres sont conservés.
 
 ---
 
 ### Edge Cases
 
-- Collaborateur qui n'est manager d'aucune équipe : le lien « Demandes en attente » n'apparaît pas dans le menu ;
-  s'il ouvre l'adresse de l'écran directement, il voit la liste vide (aucune demande à décider).
-- Demande décidée entre-temps par quelqu'un d'autre (ou dans un autre onglet) : l'action échoue avec le message du
-  système et la liste est rechargée, la demande n'y figurant plus.
-- Date de fin de filtre antérieure à la date de début : aucune demande ne correspond ; message « aucune demande ne
-  correspond aux filtres ».
-- Commentaire absent : la cellule reste vide, sans texte de remplacement trompeur.
-- Changement d'identité pendant qu'une fenêtre de décision est ouverte : la fenêtre se ferme sans rien envoyer.
-- Claire Martin : sa propre demande en attente apparaît dans sa liste et elle peut la décider (règle de la partie 1).
+- Collaborateur qui n'est valideur de rien : le lien « Demandes en attente » n'apparaît que pour un manager ; par
+  l'URL directe, il voit l'état vide.
+- Erreur réseau, 500 ou code inconnu : toast « Une erreur inattendue est survenue. Veuillez réessayer. »
+- Changement d'identité pendant que le dialogue de refus est ouvert : le dialogue se ferme sans rien envoyer.
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: L'écran DOIT afficher les demandes en attente que l'utilisateur courant est habilité à décider, telles
-  que fournies par le système (aucune règle d'habilitation n'est recalculée par l'écran).
-- **FR-002**: Chaque demande DOIT afficher : collaborateur, équipe, type de congé (libellé lisible), période
-  (jj/mm/aaaa), nombre de jours et commentaire.
-- **FR-003**: L'écran DOIT présenter des états distincts : chargement, erreur avec « Réessayer », liste vide, aucun
-  résultat après filtrage.
-- **FR-004**: La liste DOIT se recharger quand l'utilisateur courant change.
-- **FR-005**: Le manager DOIT pouvoir filtrer par collaborateur (texte libre, insensible à la casse et aux accents,
-  sur le nom complet), par type de congé (tous / congés payés / événement familial) et par période (du / au,
-  bornes facultatives, critère de chevauchement). Les filtres se combinent (ET) et s'appliquent immédiatement.
-- **FR-006**: Le manager DOIT pouvoir effacer tous les filtres en une action.
-- **FR-007**: Le manager DOIT pouvoir approuver une demande après une confirmation rappelant collaborateur, période et
-  nombre de jours.
-- **FR-008**: Le manager DOIT pouvoir refuser une demande en saisissant un motif obligatoire (non vide après suppression
-  des espaces) ; la confirmation est impossible sans motif.
-- **FR-009**: Pendant l'envoi d'une décision, l'écran DOIT empêcher un second envoi.
-- **FR-010**: Après une décision réussie, la demande DOIT disparaître de la liste et une notification de succès DOIT
-  nommer le collaborateur concerné ; les filtres actifs sont conservés.
-- **FR-011**: Après une décision échouée, une notification d'erreur DOIT afficher le message explicatif fourni par le
-  système (ou un message générique s'il est absent), et la liste DOIT être rechargée.
-- **FR-012**: L'écran DOIT être utilisable au clavier : boutons accessibles par tabulation, fermeture des fenêtres par
-  Échap, libellés explicites sur les boutons d'action (ex. « Approuver la demande de Lea Petit »).
-- **FR-013**: L'écran DOIT réutiliser les composants partagés de l'application (tableau, fenêtre de confirmation,
-  notifications) pour rester cohérent avec « Mes demandes ».
+- **FR-001** *(Circuit de validation)*: L'écran affiche les demandes en attente renvoyées par l'API pour l'utilisateur
+  courant, sans recalculer l'habilitation.
+- **FR-002** *(Messages)*: Colonnes, dans l'ordre : Collaborateur, Équipe, Type (Congés payés / Événement familial),
+  Période (« du {début} au {fin} », jj/mm/aaaa), Jours, Statut (`app-status-badge`), Actions.
+- **FR-003** *(Interactions)*: Exactement un état est affiché parmi chargement, vide, aucun résultat, erreur et données,
+  avec les visuels, libellés et `data-testid` du wiki.
+- **FR-004**: La liste se recharge quand l'utilisateur courant change.
+- **FR-005** *(Interactions)*: Filtres dans une `.toolbar` au-dessus du tableau : « Type » (Tous les types, Congés payés,
+  Événement familial) puis « Collaborateur » (recherche sur le nom, insensible à la casse) ; combinés, appliqués
+  immédiatement sur la liste chargée, conservés après une décision.
+- **FR-006** *(Interactions, RG-12)*: « Approuver » décide en un clic, sans confirmation.
+- **FR-007** *(Interactions, RG-13)*: « Refuser » ouvre `app-confirm-dialog` (`tone="danger"`, motif d'au moins
+  10 caractères) ; le dialogue se ferme après la réponse de l'API, succès ou échec.
+- **FR-008** *(Interactions)*: Pendant un appel, les boutons de la ligne concernée sont désactivés (et ceux du dialogue
+  pour un refus).
+- **FR-009** *(Interactions, Messages)*: Après un succès : toast « Demande approuvée. » ou « Demande refusée. » et
+  disparition de la ligne.
+- **FR-010** *(ADR-003, Messages)*: Après un échec : toast d'erreur du libellé associé au `code` (table de *Messages*),
+  ou libellé générique si le code est absent ou inconnu ; jamais `title`, `detail` ni message HTTP ; puis rechargement.
+- **FR-011** *(Conventions data-testid)*: `pending-requests-page`, `leave-row-{id}`, `btn-approve-{id}`,
+  `btn-reject-{id}`, `filter-type`, `filter-search`, `pending-loading`, `pending-empty`, `pending-no-match`,
+  `pending-error`, `btn-retry` ; les attributs des composants partagés ne sont pas redéfinis.
+- **FR-012** *(Composants, Design tokens)*: Uniquement les composants partagés et classes globales ; aucune librairie
+  UI ; aucune valeur de couleur, d'espacement ou de taille en dur.
 
 ### Key Entities
 
-- **Demande à décider**: demande en attente vue par le manager : collaborateur, équipe, type, période, nombre de
-  jours, commentaire.
-- **Filtres**: collaborateur (texte), type de congé, date de début et date de fin de la période recherchée.
-- **Décision**: approbation, ou refus accompagné d'un motif.
+- **Demande à décider**: collaborateur, équipe, type, période, jours, statut.
+- **Filtres**: type de congé, texte de recherche sur le collaborateur.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: Un manager approuve ou refuse une demande en 3 actions au plus depuis l'ouverture de l'écran (cliquer,
-  [saisir le motif], confirmer).
-- **SC-002**: Après une décision, la liste et la notification reflètent le résultat en moins d'une seconde dans les
-  conditions normales d'usage.
-- **SC-003**: 100 % des scénarios d'acceptation ci-dessus sont vérifiés sur l'application lancée avec les données de
-  démonstration.
-- **SC-004**: Aucune décision n'est envoyée deux fois pour un même clic, y compris en cas de clics répétés.
-- **SC-005**: L'écran est visuellement cohérent avec « Mes demandes » (mêmes composants et styles) et passe les
-  contrôles de qualité du front (compilation et règles de style) sans erreur.
+- **SC-001**: Approuver = 1 clic ; refuser = 1 clic, saisie du motif, 1 clic.
+- **SC-002**: 100 % des `data-testid` de la page *Conventions data-testid* sont présents (recette QA).
+- **SC-003**: 100 % des libellés affichés correspondent à l'identique à la page *Messages*.
+- **SC-004**: Aucun appel en double pour une même action, y compris en cas de clics répétés.
+- **SC-005**: `ng build` et `lint:styles` sans erreur ; rendu conforme à la maquette.
 
 ## Assumptions
 
-- Le back-end de la partie 1 est livré : liste des demandes à décider, approbation et refus, avec messages d'erreur
-  explicites. Le service d'accès existant du front couvre déjà ces opérations ; aucune modification du back-end
-  n'est prévue.
-- La liste des demandes à décider est de petite taille (une équipe) : le filtrage se fait sur la liste déjà
-  chargée, sans nouvelle demande au système.
-- Le motif de refus n'a pas de longueur minimale au-delà de « non vide », comme la règle du système (partie 1).
-- Le solde du collaborateur n'est pas affiché sur cet écran (non fourni dans la liste) ; le système refuse lui-même
-  une approbation qui rendrait le solde négatif.
-- Hors périmètre : décision par lot (plusieurs demandes à la fois), historique des décisions, pagination, tri
-  personnalisé, mémorisation des filtres entre deux visites.
-- Les pratiques de l'équipe s'appliquent : constitution (composants autonomes, signals, styles dans des fichiers
-  séparés, appels via les services du cœur), composants partagés existants, attributs de test (`data-testid`)
-  comme sur les autres écrans.
+- L'API de la partie 1 (révisée selon le wiki) fournit `code` sur toute erreur métier ; aucune modification du back.
+- Hors périmètre : filtre de période, décision par lot, pagination, mémorisation des filtres, bouton « Effacer les
+  filtres » (absents de la maquette et du wiki).

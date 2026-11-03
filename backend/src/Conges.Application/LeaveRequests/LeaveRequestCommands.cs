@@ -1,7 +1,6 @@
 using Conges.Application.Common;
 using Conges.Domain.LeaveRequests;
 using FluentValidation;
-using FluentValidation.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace Conges.Application.LeaveRequests;
@@ -17,6 +16,10 @@ public interface ILeaveRequestCommands
     Task<LeaveRequestDto> RejectAsync(int id, RejectLeaveRequestDto input, CancellationToken ct);
 }
 
+/// <summary>
+/// Cas d'usage d'écriture des demandes de congé. Règles de gestion RG-01 à RG-14 du wiki ; chaque violation lève une
+/// <see cref="BusinessException"/> porteuse d'un code du référentiel (ADR-003).
+/// </summary>
 internal sealed class LeaveRequestCommands(
     IAppDbContext db,
     ICurrentUser currentUser,
@@ -25,31 +28,62 @@ internal sealed class LeaveRequestCommands(
     IValidator<SubmitLeaveRequestDto> submitValidator,
     IValidator<RejectLeaveRequestDto> rejectValidator) : ILeaveRequestCommands
 {
+    private const int MinimumNoticeWorkingDays = 2;
+    private const int MinimumRejectionReasonLength = 10;
+
     public async Task<LeaveRequestDto> SubmitAsync(SubmitLeaveRequestDto input, CancellationToken ct)
     {
         await submitValidator.ValidateAndThrowAsync(input, ct);
 
         var userId = currentUser.EmployeeId;
-        var employee = await db.Employees.SingleOrDefaultAsync(e => e.Id == userId, ct)
+        var employee = await db.Employees
+            .Include(e => e.Team!).ThenInclude(t => t.ParentTeam)
+            .SingleOrDefaultAsync(e => e.Id == userId, ct)
             ?? throw new NotFoundException("Employé", userId);
 
-        var days = calendar.CountWorkingDays(input.StartDate, input.EndDate);
-        if (days == 0)
+        // Circuit de validation : la Direction (équipe sans équipe parente) est validée hors application.
+        if (LeaveApprovers.ApproverOf(employee) is null)
         {
-            throw new ValidationException([
-                new ValidationFailure(nameof(input.EndDate), "La période ne contient aucun jour ouvré."),
-            ]);
+            throw LeaveErrors.ApproverNotAllowed("Les demandes de la direction générale sont validées hors application.");
         }
 
+        var today = DateOnly.FromDateTime(time.GetLocalNow().DateTime);
+
+        // RG-01
+        if (input.EndDate < input.StartDate)
+        {
+            throw LeaveErrors.InvalidPeriod("La date de fin précède la date de début.");
+        }
+        if (input.StartDate < today)
+        {
+            throw LeaveErrors.InvalidPeriod("La date de début est dans le passé.");
+        }
+
+        // RG-02 : jours ouvrables
+        var days = calendar.CountWorkableDays(input.StartDate, input.EndDate);
+        if (days == 0)
+        {
+            throw LeaveErrors.InvalidPeriod("La période ne contient aucun jour décompté.");
+        }
+
+        // RG-03 / RG-04 : jours ouvrés strictement entre la soumission et le premier jour
+        if (input.Type == LeaveType.PaidLeave
+            && calendar.CountWorkingDays(today.AddDays(1), input.StartDate.AddDays(-1)) < MinimumNoticeWorkingDays)
+        {
+            throw LeaveErrors.NoticeTooShort();
+        }
+
+        // RG-06
         var overlaps = await db.LeaveRequests.AnyAsync(r =>
             r.EmployeeId == userId
             && (r.Status == LeaveStatus.Pending || r.Status == LeaveStatus.Approved)
             && r.StartDate <= input.EndDate && input.StartDate <= r.EndDate, ct);
         if (overlaps)
         {
-            throw new ConflictException(ConflictCodes.Overlap, "La période chevauche une demande existante.");
+            throw LeaveErrors.Overlap();
         }
 
+        // RG-05
         if (input.Type == LeaveType.PaidLeave)
         {
             var pendingDays = await db.LeaveRequests
@@ -58,11 +92,11 @@ internal sealed class LeaveRequestCommands(
             var available = employee.PaidLeaveBalance - pendingDays;
             if (days > available)
             {
-                throw new ConflictException(ConflictCodes.InsufficientBalance,
-                    $"Solde insuffisant : {available} jour(s) disponible(s), {days} demandé(s).");
+                throw LeaveErrors.InsufficientBalance(days, available);
             }
         }
 
+        // RG-07
         var request = new LeaveRequest
         {
             EmployeeId = userId,
@@ -84,20 +118,19 @@ internal sealed class LeaveRequestCommands(
     {
         var request = await LoadForDecisionAsync(id, ct);
 
+        // RG-12 : débit à l'approbation, jamais de solde négatif
         if (request.Type == LeaveType.PaidLeave)
         {
             var employee = request.Employee!;
             if (employee.PaidLeaveBalance < request.Days)
             {
-                throw new ConflictException(ConflictCodes.InsufficientBalance,
-                    $"Solde insuffisant : {employee.PaidLeaveBalance} jour(s) disponible(s), {request.Days} demandé(s).");
+                throw LeaveErrors.InsufficientBalance(request.Days, employee.PaidLeaveBalance);
             }
             employee.PaidLeaveBalance -= request.Days;
         }
 
         request.Status = LeaveStatus.Approved;
-        request.DecidedAt = time.GetUtcNow();
-        request.DecidedById = currentUser.EmployeeId;
+        Record(request);
         await SaveDecisionAsync(ct);
 
         return await ReloadAsync(id, ct);
@@ -108,37 +141,51 @@ internal sealed class LeaveRequestCommands(
         await rejectValidator.ValidateAndThrowAsync(input, ct);
         var request = await LoadForDecisionAsync(id, ct);
 
+        // RG-13
+        var reason = input.Reason?.Trim() ?? "";
+        if (reason.Length < MinimumRejectionReasonLength)
+        {
+            throw LeaveErrors.RejectionReasonRequired();
+        }
+
         request.Status = LeaveStatus.Rejected;
-        request.RejectionReason = input.Reason!.Trim();
-        request.DecidedAt = time.GetUtcNow();
-        request.DecidedById = currentUser.EmployeeId;
+        request.RejectionReason = reason;
+        Record(request);
         await SaveDecisionAsync(ct);
 
         return await ReloadAsync(id, ct);
     }
 
-    /// <summary>Charge une demande à décider : 401 → 404 → 403 → 409, dans cet ordre.</summary>
+    /// <summary>RG-14.</summary>
+    private void Record(LeaveRequest request)
+    {
+        request.DecidedAt = time.GetUtcNow();
+        request.DecidedById = currentUser.EmployeeId;
+    }
+
+    /// <summary>Charge une demande à décider : 401 → 404 → 403 (RG-10) → 409 (RG-11), dans cet ordre.</summary>
     private async Task<LeaveRequest> LoadForDecisionAsync(int id, CancellationToken ct)
     {
         var userId = currentUser.EmployeeId;
         var request = await db.LeaveRequests
             .Include(r => r.Employee!).ThenInclude(e => e.Team!).ThenInclude(t => t.ParentTeam)
             .SingleOrDefaultAsync(r => r.Id == id, ct)
-            ?? throw new NotFoundException("Demande de congé", id);
+            ?? throw LeaveErrors.NotFound(id);
 
         if (LeaveApprovers.ApproverOf(request.Employee!) != userId)
         {
-            throw new ForbiddenException("Vous n'êtes pas habilité à décider cette demande.");
+            throw LeaveErrors.ApproverNotAllowed("Vous n'êtes pas le valideur de cette demande.");
         }
 
         if (request.Status != LeaveStatus.Pending)
         {
-            throw new ConflictException(ConflictCodes.NotPending, "La demande a déjà été décidée.");
+            throw LeaveErrors.AlreadyDecided();
         }
 
         return request;
     }
 
+    /// <summary>RG-11 : une décision concurrente (jeton de concurrence sur le statut) est une demande déjà décidée.</summary>
     private async Task SaveDecisionAsync(CancellationToken ct)
     {
         try
@@ -147,7 +194,7 @@ internal sealed class LeaveRequestCommands(
         }
         catch (DbUpdateConcurrencyException)
         {
-            throw new ConflictException(ConflictCodes.ConcurrentDecision, "La demande vient d'être décidée par ailleurs.");
+            throw LeaveErrors.AlreadyDecided();
         }
     }
 

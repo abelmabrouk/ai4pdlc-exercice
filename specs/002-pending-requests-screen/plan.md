@@ -4,6 +4,10 @@
 
 **Input**: Feature specification from `specs/002-pending-requests-screen/spec.md`
 
+> **Révisé le 2026-11-03** (wiki) : décisions W1 à W6 dans `research.md`, contrat dans `contracts/ui-contract.md`.
+> Fichiers : `core/api-errors.ts` (+ spec), `pending-filters.ts` (+ spec), `pending-messages.ts` (+ spec) ;
+> `pending-decision.ts` supprimé.
+
 ## Summary
 
 Implémenter le composant vide `PendingRequestsPage` (`/manager/demandes`) : liste des demandes à décider chargée

@@ -1,5 +1,9 @@
 # Data Model — Écran « Demandes en attente »
 
+> **Révisé le 2026-11-03** (wiki) : `PendingFilters = { type: LeaveType | ''; search: string }` (recherche insensible
+> à la casse, plus de période) ; signals de décision `busyId: number | null` et `rejecting: LeaveRequest | null`
+> (remplacent `pendingDecision` et `busy`). Le reste du document est historique.
+
 Aucun nouveau modèle serveur. Modèles front existants dans `frontend/src/app/core/api.models.ts` :
 `LeaveRequest`, `LeaveType`, `ApiProblem`, `LEAVE_TYPE_LABELS`.
 

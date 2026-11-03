@@ -49,8 +49,7 @@ public sealed class ReadApiTests(CongesApiFactory factory) : IClassFixture<Conge
     {
         var response = await factory.CreateClient().GetAsync("/api/leave-requests/9999");
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        await Problems.AssertProblem(response, HttpStatusCode.NotFound, "LEAVE_NOT_FOUND");
     }
 
     [Fact]
@@ -59,6 +58,6 @@ public sealed class ReadApiTests(CongesApiFactory factory) : IClassFixture<Conge
         var response = await factory.CreateClient().GetAsync("/api/leave-requests?from=2027-03-12&to=2027-03-08");
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.True(await SubmitLeaveRequestTests.HasError(response, "to"), await response.Content.ReadAsStringAsync());
+        Assert.True(await Problems.HasError(response, "to"), await response.Content.ReadAsStringAsync());
     }
 }

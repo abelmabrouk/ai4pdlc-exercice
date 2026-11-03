@@ -45,4 +45,18 @@ public sealed class HolidayCalendarServiceTests
     [InlineData("2027-03-12", "2027-03-08", 0)] // fin avant début
     public void Working_days_exclude_weekends_holidays_and_closures(string from, string to, int expected) =>
         Assert.Equal(expected, Calendar("2026-12-31", "2027-05-07").CountWorkingDays(DateOnly.Parse(from), DateOnly.Parse(to)));
+
+    // RG-02, page « Décompte des jours » : jours ouvrables = lundi → samedi, hors fériés et fermetures.
+    [Theory]
+    [InlineData("2027-03-08", "2027-03-12", 5)] // lundi → vendredi
+    [InlineData("2027-03-08", "2027-03-13", 6)] // lundi → samedi
+    [InlineData("2027-03-11", "2027-03-16", 5)] // jeudi → mardi suivant
+    [InlineData("2027-03-08", "2027-03-14", 6)] // lundi → dimanche
+    [InlineData("2027-03-14", "2027-03-14", 0)] // dimanche seul
+    [InlineData("2027-05-03", "2027-05-09", 3)] // Ascension (jeu.), fermeture (ven.), 8 mai férié un samedi
+    [InlineData("2027-05-17", "2027-05-17", 1)] // lundi de Pentecôte travaillé
+    [InlineData("2026-12-28", "2027-01-04", 5)] // fermeture du 31/12, jour de l'an ; samedi 2 janvier décompté
+    [InlineData("2027-03-12", "2027-03-08", 0)] // fin avant début
+    public void Workable_days_count_saturdays_but_never_sundays_holidays_or_closures(string from, string to, int expected) =>
+        Assert.Equal(expected, Calendar("2026-12-31", "2027-05-07").CountWorkableDays(DateOnly.Parse(from), DateOnly.Parse(to)));
 }

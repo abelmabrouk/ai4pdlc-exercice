@@ -5,7 +5,7 @@ using Conges.Domain.LeaveRequests;
 
 namespace Conges.Tests;
 
-/// <summary>Demandes en attente que l'utilisateur courant peut décider (US2).</summary>
+/// <summary>Demandes en attente dont l'utilisateur courant est le valideur (US2, RG-10, circuit de validation).</summary>
 public sealed class PendingLeaveRequestsTests(CongesApiFactory factory) : IClassFixture<CongesApiFactory>
 {
     private const int Claire = 1, Hugo = 2, Lea = 3, Sophie = 6;
@@ -34,18 +34,12 @@ public sealed class PendingLeaveRequestsTests(CongesApiFactory factory) : IClass
         Assert.Equal(pending.OrderBy(r => r.StartDate).ThenBy(r => r.Id).Select(r => r.Id), pending.Select(r => r.Id));
     }
 
-    [Fact]
-    public async Task The_root_team_manager_sees_their_own_request()
+    [Fact] // Circuit de validation : un manager ne voit jamais sa propre demande
+    public async Task A_manager_never_sees_their_own_request()
     {
-        using var isolated = new CongesApiFactory();
-        var claire = isolated.CreateClientAs(Claire);
-        var submitted = await (await claire.PostAsJsonAsync("/api/leave-requests",
-            new { type = "PaidLeave", startDate = "2027-03-08", endDate = "2027-03-12" }, Json.Options))
-            .Content.ReadFromJsonAsync<LeaveRequestDto>(Json.Options);
+        var pending = await Pending(factory.CreateClientAs(Hugo));
 
-        var pending = await Pending(claire);
-
-        Assert.Equal(new[] { 3, submitted!.Id }.Order(), pending.Select(r => r.Id).Order());
+        Assert.DoesNotContain(pending, r => r.EmployeeId == Hugo);
     }
 
     [Fact]

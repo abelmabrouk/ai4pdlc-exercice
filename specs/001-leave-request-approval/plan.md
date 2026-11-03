@@ -4,6 +4,9 @@
 
 **Input**: Feature specification from `specs/001-leave-request-approval/spec.md`
 
+> **Révisé le 2026-11-03** : alignement sur le wiki ; les décisions qui font foi sont dans `research.md`, section
+> « Révision wiki » (W1 à W7), et le contrat dans `contracts/leave-requests-api.md`.
+
 ## Summary
 
 Ajouter au back-end la soumission d'une demande de congé, la liste des demandes à décider, l'approbation (avec
@@ -101,10 +104,10 @@ en respectant les quatre couches de la constitution.
 
 - **Soumission** (`SubmitAsync`) : valider la forme → charger l'employé courant avec équipe et équipe parente
   (404 s'il n'existe pas) → `Days = CountWorkingDays` (0 → 400) → chevauchement (409 `Overlap`) → solde
-  disponible si `PaidLeave` (409 `InsufficientBalance`) → créer `Pending` → `SaveChanges` →
+  disponible si `PaidLeave` (422 `LEAVE_INSUFFICIENT_BALANCE`) → créer `Pending` → `SaveChanges` →
   recharger avec `Employee.Team` et renvoyer `ToDto()`. Le controller renvoie `CreatedAtAction(Get, …)`.
 - **Décision** (`ApproveAsync` / `RejectAsync`) : charger la demande + employé + équipe + équipe parente
-  (404) → `ApproverOf(employee) == currentUser` sinon 403 (couvre l'auto-décision du manager racine, FR-018) → `Status == Pending` sinon 409 `NotPending` →
+  (404) → `ApproverOf(employee) == currentUser` sinon 403 `LEAVE_APPROVER_NOT_ALLOWED` → `Status == Pending` sinon 409 `LEAVE_ALREADY_DECIDED` →
   appliquer la transition (et le débit du solde si `PaidLeave` approuvée, 409 si solde < 0) → `SaveChanges`
   (`DbUpdateConcurrencyException` → 409 `ConcurrentDecision`).
 - **Liste** (`PendingAsync`) : `Where(Status == Pending).Where(LeaveApprovers.DecidableBy(userId))`, tri

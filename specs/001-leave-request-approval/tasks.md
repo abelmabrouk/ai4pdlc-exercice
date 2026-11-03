@@ -490,3 +490,19 @@ Task: "T015-T017 [US3] DecideLeaveRequestTests + ApproveAsync dans LeaveRequestC
 - Écrire le test, le voir échouer, puis implémenter (`/superpowers:test-driven-development`).
 - En cas d'échec inattendu, utiliser `/superpowers:systematic-debugging` avant toute correction.
 - Faire un commit par phase terminée.
+
+---
+
+## Phase 8: Alignement sur le wiki de l'équipe (révision du 2026-11-03)
+
+**Purpose**: appliquer les règles du wiki (RG-01 à RG-14, ADR-003, ADR-004, circuit de validation, codes d'erreur),
+non prises en compte dans la première version. TDD : chaque test a été vu en échec avant le code.
+
+- [x] T030 Spec révisée : section « Références », critères tracés `RG-xx`, codes d'erreur, Claire ne peut pas soumettre (`specs/001-leave-request-approval/spec.md`)
+- [x] T031 Tests `CountWorkableDays` (jours ouvrables, samedi compté) dans `backend/tests/Conges.Tests/HolidayCalendarServiceTests.cs`, puis implémentation dans `backend/src/Conges.Infrastructure/Calendar/HolidayCalendarService.cs` et `backend/src/Conges.Application/Common/IHolidayCalendarService.cs`
+- [x] T032 Horloge figée pour les tests : `backend/tests/Conges.Tests/FixedTimeProvider.cs`, propriété `Now` de `backend/tests/Conges.Tests/CongesApiFactory.cs` ; assertions ProblemDetails dans `backend/tests/Conges.Tests/Problems.cs`
+- [x] T033 Tests réécrits avec codes et statuts du référentiel, RG-03/RG-04, RG-13 (10 caractères), Direction : `backend/tests/Conges.Tests/SubmitLeaveRequestTests.cs`, `DecideLeaveRequestTests.cs`, `PendingLeaveRequestsTests.cs`, `ReadApiTests.cs`
+- [x] T034 `BusinessException` + `BusinessErrorKind` dans `backend/src/Conges.Application/Common/Exceptions.cs` ; `LeaveErrors` (codes fermés) dans `backend/src/Conges.Application/LeaveRequests/LeaveErrors.cs` ; mapping 422/403/404/409 dans `backend/src/Conges.Api/Http/GlobalExceptionHandler.cs`
+- [x] T035 Règles de gestion déplacées hors FluentValidation et implémentées dans `backend/src/Conges.Application/LeaveRequests/LeaveRequestCommands.cs` ; validateurs de forme seulement dans `LeaveRequestCommandValidators.cs`
+- [x] T036 Circuit de validation : `ApproverOf` nul pour la Direction, `DecidableBy` sans auto-décision dans `backend/src/Conges.Application/LeaveRequests/LeaveApprovers.cs`
+- [x] T037 `docker compose run --rm backend-tests` : 73/73

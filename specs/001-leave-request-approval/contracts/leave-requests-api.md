@@ -1,10 +1,12 @@
 # Contrat d'API — Demandes de congé (écriture et décision)
 
-Source : `ENONCE.md`, partie 1 (routes et formats non négociables). Ce document précise les réponses d'erreur.
+Sources : `ENONCE.md` partie 1 (routes et formats non négociables) ; wiki : ADR-003, « Codes d'erreur »,
+« Règles de gestion », « Circuit de validation ».
 
-Conventions : en-tête `X-User-Id` obligatoire (sinon **401**) ; JSON camelCase ; énumérations en chaînes ;
-dates `yyyy-MM-dd`. Les erreurs sont des ProblemDetails (RFC 7807) ; les erreurs métier portent une extension
-`code`.
+Conventions : en-tête `X-User-Id` obligatoire (sinon **401**, ADR-005) ; JSON camelCase ; énumérations en chaînes ;
+dates `yyyy-MM-dd`. Erreurs en `application/problem+json`. Toute erreur métier porte l'extension `code` du
+référentiel et un `type` `https://conges.example/errors/{code-en-kebab-case}` ; les clients ne lisent jamais `title`
+ni `detail`. Les erreurs de forme (FluentValidation) restent en **400** avec `errors`, sans `code`.
 
 ## Ressource `LeaveRequest` (inchangée — identique à `GET /api/leave-requests/{id}`)
 
@@ -21,46 +23,48 @@ dates `yyyy-MM-dd`. Les erreurs sont des ProblemDetails (RFC 7807) ; les erreurs
 
 Corps : `{ "type": "PaidLeave" | "FamilyEvent", "startDate": "yyyy-MM-dd", "endDate": "yyyy-MM-dd", "comment"?: string }`
 
-| Cas | Statut | Détail |
-|---|---|---|
-| Succès | **201 Created** | `Location: /api/leave-requests/{id}`, corps = demande, `status: "Pending"` |
-| Type inconnu, date mal formée | 400 | ValidationProblemDetails |
-| `endDate < startDate`, `startDate` passée, aucun jour ouvré, commentaire > 500 | 400 | ValidationProblemDetails (`errors.startDate` / `errors.endDate` / `errors.comment`) |
-| Chevauchement avec une demande Pending/Approved | 409 | `code: "Overlap"` |
-| Solde disponible insuffisant (PaidLeave) | 409 | `code: "InsufficientBalance"` |
+| Cas | Statut | `code` | Règle |
+|---|---|---|---|
+| Succès | **201** + `Location` | — (`status: "Pending"`) | RG-07 |
+| Type inconnu, date mal formée, commentaire > 500 | 400 (`errors`) | — | forme |
+| Demandeur sans valideur (Direction) | 403 | `LEAVE_APPROVER_NOT_ALLOWED` | Circuit de validation ⚠️ code réutilisé |
+| Fin < début, début passé, aucun jour ouvrable | 422 | `LEAVE_INVALID_PERIOD` | RG-01, RG-02 |
+| Congés payés avec moins de 2 jours ouvrés de prévenance | 422 | `LEAVE_NOTICE_TOO_SHORT` | RG-03 (RG-04) |
+| Chevauchement avec une demande Pending/Approved | 422 | `LEAVE_OVERLAP` | RG-06 |
+| Solde disponible insuffisant (congés payés) | 422 | `LEAVE_INSUFFICIENT_BALANCE` | RG-05 |
+
+Ordre d'évaluation : 401 → 400 → 403 → RG-01 → RG-02 → RG-03 → RG-06 → RG-05.
 
 ## GET `/api/leave-requests/pending` — demandes à décider
 
-| Cas | Statut | Détail |
-|---|---|---|
-| Succès | **200 OK** | tableau de demandes `Pending` que l'utilisateur courant peut décider, triées par `startDate` puis `id` ; vide si aucune |
-
-La route `pending` doit être déclarée avant ou distinctement de `{id:int}` (la contrainte `int` suffit à éviter
-le conflit).
+**200** : demandes `Pending` dont l'utilisateur courant est le valideur, triées par `startDate` puis `id` ; jamais sa
+propre demande ; vide s'il n'est valideur de rien.
 
 ## POST `/api/leave-requests/{id}/approve` — approuver
 
-Corps : aucun (le front envoie `{}`, qui doit être accepté).
+Corps : aucun (`{}` accepté).
 
-| Cas | Statut | Détail |
-|---|---|---|
-| Succès | **200 OK** | demande avec `status: "Approved"`, `decidedAt`, `decidedById` ; solde débité si PaidLeave |
-| Demande inexistante | 404 | |
-| Utilisateur non habilité ou propre demande (sauf manager de l'équipe racine, FR-018) | 403 | |
-| Demande non `Pending` | 409 | `code: "NotPending"` |
-| Solde insuffisant au moment de la décision | 409 | `code: "InsufficientBalance"` |
-| Décision concurrente | 409 | `code: "ConcurrentDecision"` |
+| Cas | Statut | `code` | Règle |
+|---|---|---|---|
+| Succès | **200** | — (`status: "Approved"`, solde débité si CP) | RG-12, RG-14 |
+| Demande inexistante | 404 | `LEAVE_NOT_FOUND` | — |
+| Pas le valideur (y compris sa propre demande) | 403 | `LEAVE_APPROVER_NOT_ALLOWED` | RG-10 |
+| Demande non `Pending`, ou décision concurrente | 409 | `LEAVE_ALREADY_DECIDED` | RG-11 |
+| Solde insuffisant au moment de la décision | 422 | `LEAVE_INSUFFICIENT_BALANCE` | RG-12 |
 
 ## POST `/api/leave-requests/{id}/reject` — refuser
 
 Corps : `{ "reason": string }`
 
-| Cas | Statut | Détail |
-|---|---|---|
-| Succès | **200 OK** | demande avec `status: "Rejected"`, `rejectionReason`, `decidedAt`, `decidedById` |
-| `reason` absent, vide ou blanc, > 500 caractères | 400 | ValidationProblemDetails (`errors.reason`) |
-| Demande inexistante | 404 | |
-| Non habilité / propre demande | 403 | |
-| Demande non `Pending` / concurrente | 409 | `code: "NotPending"` / `"ConcurrentDecision"` |
+| Cas | Statut | `code` | Règle |
+|---|---|---|---|
+| Succès | **200** | — (`status: "Rejected"`, motif enregistré sans espaces de bord) | RG-13, RG-14 |
+| `reason` > 500 caractères | 400 (`errors.reason`) | — | forme |
+| Demande inexistante | 404 | `LEAVE_NOT_FOUND` | — |
+| Pas le valideur | 403 | `LEAVE_APPROVER_NOT_ALLOWED` | RG-10 |
+| Demande non `Pending` | 409 | `LEAVE_ALREADY_DECIDED` | RG-11 |
+| Motif absent ou < 10 caractères (espaces de bord exclus) | 422 | `LEAVE_REJECTION_REASON_REQUIRED` | RG-13 |
 
-**Ordre d'évaluation** (approve et reject) : 401 → 400 (corps) → 404 → 403 → 409.
+Ordre d'évaluation (approve et reject) : 401 → 400 → 404 → 403 → 409 → 422.
+
+`GET /api/leave-requests/{id}` sur une demande inexistante renvoie aussi 404 `LEAVE_NOT_FOUND`.

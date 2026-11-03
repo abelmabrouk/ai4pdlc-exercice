@@ -1,52 +1,48 @@
 # Contrat d'interface — Écran « Demandes en attente »
 
-## Dépendance API (inchangée, partie 1)
+> Révisé le 2026-11-03 : aligné sur le wiki (Maquette, Composants, Interactions, Messages, Conventions data-testid).
 
-Via `LeaveRequestService` (`frontend/src/app/core/leave-request.service.ts`) :
-`pending()` → `GET /api/leave-requests/pending` ; `approve(id)` → `POST …/{id}/approve` ;
-`reject(id, reason)` → `POST …/{id}/reject`. Erreurs : `ApiProblem` (`detail`, `code`, `errors.reason`).
-Voir `specs/001-leave-request-approval/contracts/leave-requests-api.md`.
+## Dépendance API (partie 1, inchangée côté front)
+
+`LeaveRequestService` : `pending()`, `approve(id)`, `reject(id, reason)`. Les erreurs portent `code` (ADR-003) ; le
+libellé affiché vient de `core/api-errors.ts` (`errorMessage`), jamais de `title` ni `detail`.
 
 ## Route
 
-`/manager/demandes` (déjà déclarée dans `app.routes.ts`, titre « Demandes en attente », lien `nav-pending` visible
-pour les managers).
+`/manager/demandes` (existante), lien `nav-pending` visible pour les managers.
 
-## Sélecteurs de test (`data-testid`)
+## data-testid (page « Conventions data-testid »)
 
-| testid | Élément |
+| Élément | `data-testid` |
 |---|---|
-| `pending-filter-employee` | champ texte « Collaborateur » |
-| `pending-filter-type` | liste « Type » (valeurs `''`, `PaidLeave`, `FamilyEvent`) |
-| `pending-filter-from` | date « Du » |
-| `pending-filter-to` | date « Au » |
-| `pending-filters-clear` | bouton « Effacer les filtres » (visible si au moins un filtre) |
-| `pending-row-{id}` | ligne du tableau (via `rowTestId` de `DataTable`) |
-| `approve-{id}` | bouton « Approuver » d'une ligne |
-| `reject-{id}` | bouton « Refuser » d'une ligne |
-| `pending-empty` | panneau « Aucune demande en attente » |
-| `pending-no-match` | panneau « Aucune demande ne correspond aux filtres » |
-| `pending-error` | panneau d'erreur de chargement (avec « Réessayer ») |
-| `confirm-dialog`, `confirm-dialog-reason`, `confirm-dialog-confirm`, `confirm-dialog-cancel` | existants (`ConfirmDialog`) |
-| `toast` (`data-kind` = `success` / `error`) | existant (`Toast`) |
+| Conteneur de l'écran | `pending-requests-page` |
+| Ligne | `leave-row-{id}` (via `rowTestId`) |
+| Bouton Approuver / Refuser d'une ligne | `btn-approve-{id}` / `btn-reject-{id}` |
+| Filtre type (`""`, `PaidLeave`, `FamilyEvent`) | `filter-type` |
+| Recherche collaborateur | `filter-search` |
+| États | `pending-loading`, `pending-empty`, `pending-no-match`, `pending-error` |
+| Bouton Réessayer | `btn-retry` |
+| Composants partagés (non redéfinis) | `data-table`, `status-badge`, `confirm-dialog*`, `toast` |
 
-## Colonnes du tableau
+## Colonnes
 
-| key | En-tête | Contenu |
+Collaborateur · Équipe · Type (`LEAVE_TYPE_LABELS`) · Période (« du jj/mm/aaaa au jj/mm/aaaa ») · Jours (à droite) ·
+Statut (`app-status-badge`) · Actions (`.btn--primary .btn--sm` « Approuver », puis `.btn--danger .btn--sm` « Refuser »).
+
+## Interactions
+
+| Action | Comportement |
+|---|---|
+| Approuver | Un clic, sans confirmation ; boutons de la ligne désactivés pendant l'appel ; succès → toast « Demande approuvée. » + ligne retirée ; échec → toast du libellé du code + rechargement |
+| Refuser | `app-confirm-dialog` : titre « Refuser la demande », message « Demande de {collaborateur} du {début} au {fin}. », `reasonLabel` « Motif du refus », `[reasonMinLength]="10"`, `tone="danger"`, bouton « Refuser », `busy` pendant l'appel ; fermeture après la réponse ; succès → toast « Demande refusée. » + ligne retirée ; échec → toast + rechargement |
+| Filtres | `.toolbar` : « Type » puis « Collaborateur » (placeholder « Rechercher un collaborateur ») ; immédiats, insensibles à la casse, conservés après décision |
+
+## États (un seul à la fois)
+
+| État | Visuel | Libellé |
 |---|---|---|
-| `employee` | Collaborateur | `employeeName` |
-| `team` | Équipe | `teamName` |
-| `type` | Type | `LEAVE_TYPE_LABELS[type]` |
-| `period` | Période | « du dd/MM/yyyy au dd/MM/yyyy » (template `appCell`) |
-| `days` | Jours | `days`, aligné à droite |
-| `comment` | Commentaire | `comment` (vide si `null`) |
-| `actions` | Actions | boutons Approuver (`btn btn--primary btn--sm`) / Refuser (`btn btn--danger btn--sm`), `aria-label` « Approuver la demande de {nom} » |
-
-## Textes
-
-| Situation | Texte |
-|---|---|
-| Dialogue approbation | titre « Approuver la demande », message « {nom} — du {début} au {fin} ({n} jour(s)) », bouton « Approuver » |
-| Dialogue refus | titre « Refuser la demande », même message, champ « Motif du refus », bouton « Refuser » (danger) |
-| Succès | « Demande de {nom} approuvée. » / « Demande de {nom} refusée. » |
-| Erreur | `detail` du problème, sinon premier message de `errors`, sinon « La décision n'a pas pu être enregistrée. » |
+| Chargement | `.skeleton` + 3 `.skeleton__row` | — |
+| Vide | `.state-panel`, icône ✅ | Aucune demande en attente. |
+| Aucun résultat | `.state-panel`, icône 🔍 | Aucune demande ne correspond aux filtres. |
+| Erreur | `.state-panel.state-panel--error` + « Réessayer » (`.btn--secondary`) | Impossible de charger les demandes en attente. |
+| Données | `app-data-table` | — |

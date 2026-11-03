@@ -12,13 +12,13 @@ Seule évolution de mapping : `LeaveRequest.Status` devient jeton de concurrence
 | `Type` | `LeaveType` (`PaidLeave`, `FamilyEvent`) | obligatoire, valeur connue |
 | `StartDate` | DateOnly | ≥ aujourd'hui (FR-004) |
 | `EndDate` | DateOnly | ≥ `StartDate` (FR-004) |
-| `Days` | int | = `CountWorkingDays(StartDate, EndDate)`, ≥ 1 (FR-003, FR-004) |
+| `Days` | int | = `CountWorkableDays(StartDate, EndDate)` (jours ouvrables, RG-02), ≥ 1 |
 | `Status` | `LeaveStatus` | voir transitions ; **jeton de concurrence** |
 | `Comment` | string? | ≤ 500 caractères |
-| `RejectionReason` | string? | obligatoire et non vide si `Rejected`, ≤ 500 caractères (FR-014) |
+| `RejectionReason` | string? | obligatoire si `Rejected` : ≥ 10 caractères après `Trim()` (RG-13), ≤ 500 |
 | `SubmittedAt` | DateTimeOffset | `TimeProvider.GetUtcNow()` à la soumission (FR-016) |
 | `DecidedAt` | DateTimeOffset? | `TimeProvider.GetUtcNow()` à la décision |
-| `DecidedById` | int? | décideur ; = demandeur pour le manager de l'équipe racine (FR-018) |
+| `DecidedById` | int? | valideur ayant décidé (RG-14) |
 
 **Unicité temporelle** : pour un même `EmployeeId`, pas deux demandes `Pending`/`Approved` dont les intervalles
 `[StartDate, EndDate]` se chevauchent (FR-005). Chevauchement ⇔ `a.StartDate <= b.EndDate && b.StartDate <= a.EndDate`.
@@ -31,9 +31,9 @@ Seule évolution de mapping : `LeaveRequest.Status` devient jeton de concurrence
                                   └────── reject(reason) par l'approbateur ───► Rejected
 ```
 
-- `Approved` et `Rejected` sont terminaux : toute décision ultérieure → 409 `NotPending` (FR-015).
+- `Approved` et `Rejected` sont terminaux : toute décision ultérieure → 409 `LEAVE_ALREADY_DECIDED` (RG-11).
 - Effet de `→ Approved` si `Type = PaidLeave` : `Employee.PaidLeaveBalance -= Days`, refusé si le résultat < 0
-  (409 `InsufficientBalance`, FR-012). Aucun effet sur le solde pour `FamilyEvent` (FR-013) ni pour `→ Rejected`.
+  (422 `LEAVE_INSUFFICIENT_BALANCE`, RG-12). Aucun effet sur le solde pour `FamilyEvent` (FR-013) ni pour `→ Rejected`.
 
 ## Employee (existante)
 
@@ -54,13 +54,13 @@ Seule évolution de mapping : `LeaveRequest.Status` devient jeton de concurrence
 ```text
 ApproverOf(e) = e.Team.ManagerId              si e.Id ≠ e.Team.ManagerId
               = e.Team.ParentTeam.ManagerId   si e est manager et l'équipe a une équipe parente
-              = e.Id                          sinon (manager de l'équipe racine, FR-018)
+              = null                          sinon (Direction, validée hors application : soumission refusée)
 ```
 
 Avec les données de démonstration : Lea/Karim/Ines → Hugo (2) ; Thomas/Yasmine/Nicolas → Sophie (6) ;
-Hugo, Sophie → Claire (1) ; Claire → Claire (1).
+Hugo, Sophie → Claire (1) ; Claire → aucun (ne peut pas soumettre).
 
 ## Calendrier (service existant `IHolidayCalendarService`)
 
-Nouvelle opération : `CountWorkingDays(from, to)` = nombre de jours du lundi au vendredi dans `[from, to]`,
-moins les jours fériés et fermetures renvoyés par `GetHolidays(from, to)` tombant en semaine.
+Opérations : `CountWorkableDays(from, to)` (lundi → samedi, décompte RG-02) et `CountWorkingDays(from, to)`
+(lundi → vendredi, délai RG-03), toutes deux hors jours renvoyés par `GetHolidays(from, to)`.

@@ -22,7 +22,14 @@ public interface IHolidayCalendarService
     IReadOnlyList<Holiday> GetHolidays(DateOnly from, DateOnly to);
 
     /// <summary>
-    /// Jours du lundi au vendredi entre <paramref name="from"/> et <paramref name="to"/> inclus, hors jours fériés
+    /// Jours ouvrables (unité de décompte des congés, RG-02) : du lundi au samedi entre <paramref name="from"/> et
+    /// <paramref name="to"/> inclus, hors jours fériés et fermetures ; 0 si <paramref name="to"/> est antérieur à
+    /// <paramref name="from"/>.
+    /// </summary>
+    int CountWorkableDays(DateOnly from, DateOnly to);
+
+    /// <summary>
+    /// Jours ouvrés (unité des délais, RG-03) : du lundi au vendredi entre <paramref name="from"/> et <paramref name="to"/> inclus, hors jours fériés
     /// et fermetures ; 0 si <paramref name="to"/> est antérieur à <paramref name="from"/>.
     /// </summary>
     int CountWorkingDays(DateOnly from, DateOnly to);

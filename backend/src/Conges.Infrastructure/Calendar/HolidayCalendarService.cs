@@ -39,7 +39,13 @@ public sealed class HolidayCalendarService(IOptions<HolidayCalendarOptions> opti
             .ToList();
     }
 
-    public int CountWorkingDays(DateOnly from, DateOnly to)
+    public int CountWorkableDays(DateOnly from, DateOnly to) =>
+        CountDays(from, to, day => day.DayOfWeek != DayOfWeek.Sunday);
+
+    public int CountWorkingDays(DateOnly from, DateOnly to) =>
+        CountDays(from, to, day => day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday));
+
+    private int CountDays(DateOnly from, DateOnly to, Func<DateOnly, bool> isCountedWeekday)
     {
         if (to < from) return 0;
 
@@ -47,7 +53,7 @@ public sealed class HolidayCalendarService(IOptions<HolidayCalendarOptions> opti
         var count = 0;
         for (var day = from; day <= to; day = day.AddDays(1))
         {
-            if (day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !holidays.Contains(day)) count++;
+            if (isCountedWeekday(day) && !holidays.Contains(day)) count++;
         }
 
         return count;
