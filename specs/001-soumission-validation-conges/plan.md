@@ -18,7 +18,8 @@ Approche technique, détaillée dans [research.md](research.md) :
 - **Décompte des jours et délai de prévenance** : `LeaveDayCounter`, au-dessus du calendrier existant
   `IHolidayCalendarService` (ADR-004). Il couvre les jours ouvrables pour le décompte et les jours ouvrés pour la
   prévenance.
-- **Valideur** : la fonction pure `ApprovalCircuit.ApproverIdOf` du domaine, partagée par la liste et la décision.
+- **Valideur** : la fonction pure `ApprovalCircuit.ApproverIdOf` (`Conges.Application`), partagée par la liste et la
+  décision.
 - **Erreurs métier** : une `BusinessRuleException` (code + nature), fabriquée par `LeaveErrors` et traduite en
   ProblemDetails avec l'extension `code` par le `GlobalExceptionHandler` existant. Les règles de gestion ne
   passent jamais par FluentValidation, qui reste limité à la forme.
@@ -64,8 +65,8 @@ modifiée
 
 | Principe / décision | Exigence | Conformité du plan | Statut |
 |---|---|---|---|
-| **I. Architecture en couches** | Dépendances vers l'intérieur, controllers minces, pas de `DbContext` dans un controller | Règles dans des services `Application`. `ApprovalCircuit` dans `Domain`. Controller : HTTP ↔ service. Le filtre `[RequireIdentifiedUser]` délègue à `ICurrentUserGuard` (`Application`). | ✅ |
-| **II. Contrats explicites** | DTO `record`, camelCase, énumérations en chaînes, `DateOnly`, FluentValidation pour la forme, ProblemDetails via le gestionnaire global | `SubmitLeaveRequest` et `RejectLeaveRequest` en `record`. `LeaveRequestDto` réutilisé. Validateur de forme uniquement. `BusinessRuleException` traduite par `GlobalExceptionHandler`. | ✅ |
+| **I. Architecture en couches** | Dépendances vers l'intérieur, controllers minces, pas de `DbContext` dans un controller | Règles dans des services `Application`. `ApprovalCircuit` (règle pure) dans `Application`, car `Domain` ne contient que des entités et des énumérations. Controller : HTTP ↔ service. Le filtre `[RequireIdentifiedUser]` délègue à `ICurrentUserGuard` (`Application`). | ✅ |
+| **II. Contrats explicites** | DTO `record`, camelCase, énumérations en chaînes, `DateOnly`, FluentValidation pour la forme, ProblemDetails via le gestionnaire global | `SubmitLeaveRequest` et `RejectLeaveRequest` en `record`. `LeaveRequestDto` réutilisé. Validateur de forme uniquement. `BusinessRuleException` traduite par `GlobalExceptionHandler`. Les 400 de liaison du modèle restent produits par `[ApiController]` (voir Complexity Tracking). | ✅ (dérogation documentée) |
 | **III. Réutilisation avant création** | Vérifier l'existant | Réutilisés : `IHolidayCalendarService`, `ICurrentUser`, `TimeProvider`, `LeaveRequestDto`/`ToDto`, `ILeaveRequestQueries`, `GlobalExceptionHandler`, `UnauthenticatedException`, `CongesApiFactory`. Seul ajout : le décompte, qui n'existe nulle part. | ✅ |
 | **IV. Tests** | xUnit, `CongesApiFactory`, `docker compose run --rm backend-tests` vert | Tests unitaires (`LeaveDayCounter`, `ApprovalCircuit`) et tests d'API par user story, avec chaque scénario d'acceptation tracé par son `RG-xx` | ✅ |
 | **V. Temps et données** | `TimeProvider`, `EnsureCreated` sans migrations, clé `ConnectionStrings:Conges` inchangée | `TimeProvider` injecté, `TestClock` en test. Seule évolution du modèle : un jeton de concurrence, sans colonne. Configuration inchangée. | ✅ |
@@ -76,7 +77,8 @@ modifiée
 | **ADR-005** (wiki) | `X-User-Id` via `ICurrentUser`, jamais `HttpContext` dans les services, 401 en ProblemDetails | `ICurrentUserGuard` lit `ICurrentUser` et lève `UnauthenticatedException` | ✅ |
 | **ADR-006** (wiki) | Spec avec « Références » et traçabilité des RG-xx | Spec conforme. Le nom des tests reprend le `RG-xx` couvert. | ✅ |
 
-**Résultat avant la Phase 0** : PASS, aucune dérogation.
+**Résultat avant la Phase 0** : PASS. Une dérogation mineure au principe II est documentée dans Complexity Tracking
+(relevée par `/speckit-analyze`).
 **Re-check après la Phase 1** (data model, contrat, quickstart) : PASS. Le design n'introduit ni projet, ni
 dépendance, ni changement de schéma. Le filtre d'autorisation n'est pas une dérogation : il reste dans la couche
 Api et ne fait qu'appeler un service applicatif.
@@ -104,14 +106,12 @@ specs/001-soumission-validation-conges/
 ```text
 backend/
 ├── src/
-│   ├── Conges.Domain/
-│   │   └── Organization/
-│   │       └── ApprovalCircuit.cs              # NOUVEAU : ApproverIdOf(Employee) (circuit de validation)
 │   ├── Conges.Application/
 │   │   ├── Common/
 │   │   │   ├── Exceptions.cs                   # MODIFIÉ : + BusinessRuleException, BusinessErrorKind
 │   │   │   └── CurrentUserGuard.cs             # NOUVEAU : ICurrentUserGuard (en-tête + existence → 401)
 │   │   ├── LeaveRequests/
+│   │   │   ├── ApprovalCircuit.cs              # NOUVEAU : ApproverIdOf(Employee) (circuit de validation)
 │   │   │   ├── LeaveErrors.cs                  # NOUVEAU : fabrique des 8 erreurs du référentiel
 │   │   │   ├── LeaveDayCounter.cs              # NOUVEAU : jours ouvrables (RG-02) et jours ouvrés (RG-03)
 │   │   │   ├── LeaveRequestCommands.cs         # NOUVEAU : DTO, validateur de forme, ILeaveRequestCommands
@@ -126,7 +126,8 @@ backend/
 │           └── RequireIdentifiedUserAttribute.cs   # NOUVEAU : filtre d'autorisation (401 avant 400)
 └── tests/Conges.Tests/
     ├── TestClock.cs                            # NOUVEAU : TimeProvider figé
-    ├── CongesApiFactory.cs                     # MODIFIÉ : horloge facultative (ConfigureTestServices)
+    ├── CongesApiFactory.cs                     # MODIFIÉ : horloge et intercepteurs EF facultatifs (ConfigureTestServices)
+    ├── ConcurrentDecisionInterceptor.cs        # NOUVEAU : simule une décision concurrente (FR-020, Edge Cases)
     ├── LeaveDayCounterTests.cs                 # NOUVEAU : unitaires RG-02, RG-03
     ├── ApprovalCircuitTests.cs                 # NOUVEAU : unitaires du circuit de validation
     ├── SubmitLeaveRequestApiTests.cs           # NOUVEAU : US1
@@ -159,12 +160,13 @@ L'ordre des étapes est celui de FR-024. Les détails sont dans [contracts/leave
 **Approuver / refuser** (`ApproveAsync`, `RejectAsync`) :
 
 1. [filtre] 401.
-2. Chargement de la demande avec employé, équipe et équipe parente, sinon `LEAVE_NOT_FOUND`.
-3. RG-10 : `ApproverIdOf(employé) == utilisateur courant`, sinon `LEAVE_APPROVER_NOT_ALLOWED`. Une valeur `null`
+2. [liaison du modèle, refus uniquement] JSON invalide → 400.
+3. Chargement de la demande avec employé, équipe et équipe parente, sinon `LEAVE_NOT_FOUND`.
+4. RG-10 : `ApproverIdOf(employé) == utilisateur courant`, sinon `LEAVE_APPROVER_NOT_ALLOWED`. Une valeur `null`
    (direction générale) échoue toujours.
-4. RG-11 : statut `Pending`, sinon `LEAVE_ALREADY_DECIDED`.
-5. Refus seulement, RG-13 : `reason?.Trim()` d'au moins 10 caractères, sinon `LEAVE_REJECTION_REASON_REQUIRED`.
-6. RG-12, RG-13, RG-14 : statut, motif, `DecidedAt`, `DecidedById`, et le débit du solde pour une approbation
+5. RG-11 : statut `Pending`, sinon `LEAVE_ALREADY_DECIDED`.
+6. Refus seulement, RG-13 : `reason?.Trim()` d'au moins 10 caractères, sinon `LEAVE_REJECTION_REASON_REQUIRED`.
+7. RG-12, RG-13, RG-14 : statut, motif, `DecidedAt`, `DecidedById`, et le débit du solde pour une approbation
    `PaidLeave`. Ensuite un seul `SaveChangesAsync` ; une `DbUpdateConcurrencyException` donne
    `LEAVE_ALREADY_DECIDED`.
 
@@ -188,4 +190,6 @@ L'ordre des étapes est celui de FR-024. Les détails sont dans [contracts/leave
 
 ## Complexity Tracking
 
-Aucune violation de la constitution n'est à justifier.
+| Violation | Why Needed | Simpler Alternative Rejected Because |
+|-----------|------------|-------------------------------------|
+| Principe II, « ProblemDetails via le gestionnaire d'exceptions global » : les 400 de liaison du modèle (JSON invalide, date mal formée, énumération inconnue) ne passent pas par `GlobalExceptionHandler`. | ASP.NET Core les produit avant l'exécution de l'action, au format ProblemDetails (`ValidationProblemDetails`, `application/problem+json`, `errors`, sans `code`), exactement comme sur les routes existantes. Le format exigé est donc respecté. | Les faire passer par le gestionnaire (`InvalidModelStateResponseFactory` qui lève une `ValidationException`) changerait le comportement de toutes les routes existantes, sans gain pour les clients : le statut et le format sont identiques, et les clients ne lisent que `code` (ADR-003). |

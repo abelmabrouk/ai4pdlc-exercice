@@ -13,7 +13,7 @@ l'ADR-003 et le référentiel [Codes d'erreur](../../../docs/wiki/Codes-d-erreur
   **uniquement** sur `code`, jamais sur `title` ni sur `detail`.
 - **Ordre des vérifications (FR-024)** : seule la première erreur rencontrée est renvoyée.
   - Soumission : 401, puis 400, puis RG-01, RG-02, RG-03, RG-05 et RG-06.
-  - Décision : 401, puis 404, 403, 409, puis 422 (motif de refus).
+  - Décision : 401, puis 400 (refus uniquement : JSON invalide), puis 404, 403, 409, puis 422 (motif de refus).
 
 ## Représentation d'une demande (`LeaveRequest`)
 

@@ -75,9 +75,9 @@ sont prises à partir du code existant (`backend/`), de la constitution et du wi
   - Une interface `ILeaveDayCounter` : aucune deuxième implémentation n'est envisagée (principe VII).
   - Appeler `IsHoliday` jour par jour : correct, mais `GetHolidays` sur l'intervalle est plus direct.
 
-## R5 — Circuit de validation : une règle pure dans le domaine
+## R5 — Circuit de validation : une règle pure dans la couche Application
 
-- **Decision** : créer `ApprovalCircuit.ApproverIdOf(Employee requester)` (`Conges.Domain/Organization`), une
+- **Decision** : créer `ApprovalCircuit.ApproverIdOf(Employee requester)` (`Conges.Application/LeaveRequests`), une
   fonction statique pure. Elle exige `requester.Team` et `Team.ParentTeam` chargés et renvoie :
   - le manager de l'équipe, si le demandeur n'est pas ce manager ;
   - sinon, le manager de l'équipe parente ;
@@ -92,6 +92,8 @@ sont prises à partir du code existant (`backend/`), de la constitution et du wi
   - Un prédicat traduit en SQL : plus efficace à grande échelle, mais il duplique l'algorithme (une expression
     LINQ plus la fonction de décision). Ce n'est pas justifié à ce volume.
   - Une propriété calculée sur `Employee` : moins explicite sur le chargement nécessaire des équipes.
+  - Placer la fonction dans `Conges.Domain` : exclu. Le principe I de la constitution réserve ce projet aux
+    entités et aux énumérations (relevé par `/speckit-analyze`, C1).
 
 ## R6 — Décisions concurrentes et atomicité
 
@@ -103,6 +105,9 @@ sont prises à partir du code existant (`backend/`), de la constitution et du wi
   ensemble ou pas du tout (FR-020). Avec le jeton, l'`UPDATE` porte `WHERE Status = 'Pending'` : si une autre
   décision est passée entre-temps, aucune ligne n'est modifiée, et la seconde décision échoue proprement (Edge
   Cases). Il n'y a pas de changement de schéma (ADR-002).
+- **Test** : un intercepteur EF de test (`ConcurrentDecisionInterceptor`) modifie le statut en base juste avant
+  l'enregistrement. Cela vérifie la traduction en `LEAVE_ALREADY_DECIDED` et l'annulation du débit du solde
+  (FR-020).
 - **Alternatives considered** :
   - Une transaction explicite avec un `UPDATE` conditionnel : il faudrait exposer `Database` dans
     `IAppDbContext`. C'est plus de code pour le même résultat.

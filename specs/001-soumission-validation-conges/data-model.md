@@ -43,7 +43,7 @@ jeton de concurrence (voir [research.md](research.md), R6). Elle n'ajoute aucune
 | **Jours décomptés** | Nombre de jours du lundi au samedi dans `[StartDate, EndDate]`, hors jours renvoyés par `IHolidayCalendarService` | `LeaveDayCounter.CountLeaveDays` |
 | **Jours de prévenance** | Nombre de jours du lundi au vendredi strictement entre la date du jour et `StartDate`, hors jours du calendrier | `LeaveDayCounter.CountNoticeDays` |
 | **Solde disponible** | `PaidLeaveBalance` moins la somme des `Days` des demandes `PaidLeave` du collaborateur au statut `Pending` | Service de soumission |
-| **Valideur** | Le manager de l'équipe du demandeur ; si le demandeur est ce manager, le manager de l'équipe parente ; s'il n'y a pas d'équipe parente, `null` | `ApprovalCircuit.ApproverIdOf` (domaine) |
+| **Valideur** | Le manager de l'équipe du demandeur ; si le demandeur est ce manager, le manager de l'équipe parente ; s'il n'y a pas d'équipe parente, `null` | `ApprovalCircuit.ApproverIdOf` (`Conges.Application/LeaveRequests`) |
 
 ## Cycle de vie d'une demande
 

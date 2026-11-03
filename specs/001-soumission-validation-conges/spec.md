@@ -20,7 +20,8 @@
   ou de refuser.
 - Q: Quand une demande enfreint plusieurs règles à la fois, quelle erreur le système doit-il renvoyer ? → A: La
   première dans un ordre fixe. À la soumission : 401, 400, puis RG-01, RG-02, RG-03, RG-05, RG-06. À la décision :
-  401, 404, 403, 409, puis motif (422).
+  401, 404, 403, 409, puis motif (422). Précisé à l'analyse : pour le refus, le 400 (JSON invalide) se place
+  juste après le 401.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -366,8 +367,8 @@ compare au circuit de validation.
 - **FR-024**: Lorsque plusieurs vérifications échouent, le système DOIT renvoyer uniquement la première selon un
   ordre fixe :
   - à la soumission : identification (401), forme (400), puis RG-01, RG-02, RG-03, RG-05 et RG-06 ;
-  - à la décision : identification (401), existence (404), habilitation (403), statut (409), puis motif de refus
-    (422).
+  - à la décision : identification (401), forme (400, refus uniquement : JSON invalide), existence (404),
+    habilitation (403), statut (409), puis motif de refus (422).
 
 ### Contrat d'interface (imposé)
 
