@@ -23,6 +23,29 @@ docker compose restart api                    # recrée la base SQLite avec les 
 - `frontend/src/app/shared` : composants partagés.
 - `frontend/src/app/features` : écrans.
 - `specs/` : spécifications produites avec Spec Kit.
+- `docs/wiki/` : wiki de l'équipe (sous-module git, voir ci-dessous).
+
+## Documentation de référence
+
+Le wiki de l'équipe est dans `docs/wiki/` (sous-module de
+https://github.com/abelmabrouk/ai4pdlc-exercice/wiki ; mise à jour : `git submodule update --remote docs/wiki`).
+**Il fait foi** : en cas d'écart entre le wiki et une intuition « de bon sens », c'est le wiki qui l'emporte.
+Le consulter avant toute spec, tout plan ou toute implémentation. Il contient notamment :
+
+- Métier : `Glossaire.md`, `Regles-de-gestion.md` (RG-01 à RG-14), `Decompte-des-jours.md`,
+  `Circuit-de-validation.md`.
+- Technique : `ADR.md` et `ADR-00x-*.md`, `Codes-d-erreur.md` (liste fermée des codes `LEAVE_*`).
+- Design system « Ardoise » : `Design-system.md`, `Design-tokens.md`, `Composants.md`, `Interactions.md`,
+  `Messages.md`, `Conventions-data-testid.md`, `Maquette-demandes-en-attente.md` (image dans `images/`).
+
+Pour toute spec : section « Références » obligatoire (ADR et RG-xx, voir ADR-006), et pour une spec front,
+section « Composants utilisés » (voir `Design-system.md`).
+
+Pages chargées en permanence :
+
+- @docs/wiki/Regles-de-gestion.md
+- @docs/wiki/Codes-d-erreur.md
+- @docs/wiki/ADR-006-redaction-des-specifications.md
 
 ## Conventions
 
