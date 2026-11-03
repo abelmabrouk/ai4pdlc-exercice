@@ -34,4 +34,15 @@ public sealed class HolidayCalendarServiceTests
             h => Assert.Equal((new DateOnly(2027, 5, 7), HolidayKind.CompanyClosure), (h.Date, h.Kind)),
             h => Assert.Equal((new DateOnly(2027, 5, 8), HolidayKind.PublicHoliday), (h.Date, h.Kind)));
     }
+
+    [Theory]
+    [InlineData("2027-03-08", "2027-03-12", 5)] // semaine complète
+    [InlineData("2027-03-08", "2027-03-08", 1)] // un seul jour ouvré
+    [InlineData("2027-03-13", "2027-03-14", 0)] // week-end seul
+    [InlineData("2027-05-03", "2027-05-09", 3)] // Ascension + fermeture ; 8 mai un samedi, pas retiré deux fois
+    [InlineData("2027-05-17", "2027-05-17", 1)] // lundi de Pentecôte travaillé
+    [InlineData("2026-12-28", "2027-01-04", 4)] // fermeture du 31/12 + jour de l'an, à cheval sur deux années
+    [InlineData("2027-03-12", "2027-03-08", 0)] // fin avant début
+    public void Working_days_exclude_weekends_holidays_and_closures(string from, string to, int expected) =>
+        Assert.Equal(expected, Calendar("2026-12-31", "2027-05-07").CountWorkingDays(DateOnly.Parse(from), DateOnly.Parse(to)));
 }

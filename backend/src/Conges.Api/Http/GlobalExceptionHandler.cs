@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Conges.Application.Common;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
@@ -17,7 +18,7 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
         {
             ValidationException validation => new ValidationProblemDetails(
                 validation.Errors
-                    .GroupBy(e => e.PropertyName)
+                    .GroupBy(e => CamelCase(e.PropertyName))
                     .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray()))
             {
                 Status = StatusCodes.Status400BadRequest,
@@ -34,6 +35,19 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
                 Status = StatusCodes.Status401Unauthorized,
                 Title = "Utilisateur non identifié.",
                 Detail = unauthenticated.Message,
+            },
+            ForbiddenException forbidden => new ProblemDetails
+            {
+                Status = StatusCodes.Status403Forbidden,
+                Title = "Action non autorisée.",
+                Detail = forbidden.Message,
+            },
+            ConflictException conflict => new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Conflit avec l'état actuel.",
+                Detail = conflict.Message,
+                Extensions = { ["code"] = conflict.Code },
             },
             _ => new ProblemDetails
             {
@@ -55,4 +69,8 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
             Exception = exception,
         });
     }
+
+    /// <summary>Noms de champs alignés sur le JSON de l'API (camelCase), segment par segment : <c>Items[0].Name</c> → <c>items[0].name</c>.</summary>
+    private static string CamelCase(string propertyName) =>
+        string.Join('.', propertyName.Split('.').Select(JsonNamingPolicy.CamelCase.ConvertName));
 }

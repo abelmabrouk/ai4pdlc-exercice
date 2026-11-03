@@ -52,4 +52,13 @@ public sealed class ReadApiTests(CongesApiFactory factory) : IClassFixture<Conge
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
+
+    [Fact]
+    public async Task Validation_errors_use_camel_case_field_names()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/leave-requests?from=2027-03-12&to=2027-03-08");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.True(await SubmitLeaveRequestTests.HasError(response, "to"), await response.Content.ReadAsStringAsync());
+    }
 }

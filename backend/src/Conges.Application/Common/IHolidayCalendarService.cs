@@ -20,4 +20,10 @@ public interface IHolidayCalendarService
 
     /// <summary>Jours fériés et fermetures compris entre <paramref name="from"/> et <paramref name="to"/> inclus.</summary>
     IReadOnlyList<Holiday> GetHolidays(DateOnly from, DateOnly to);
+
+    /// <summary>
+    /// Jours du lundi au vendredi entre <paramref name="from"/> et <paramref name="to"/> inclus, hors jours fériés
+    /// et fermetures ; 0 si <paramref name="to"/> est antérieur à <paramref name="from"/>.
+    /// </summary>
+    int CountWorkingDays(DateOnly from, DateOnly to);
 }

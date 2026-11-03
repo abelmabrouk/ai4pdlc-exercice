@@ -48,6 +48,10 @@ Les équipes Produit et Support sont rattachées à la Direction.
 | GET | `/api/teams` | Équipes |
 | GET | `/api/leave-requests?employeeId=&teamId=&status=&from=&to=` | Demandes de congé |
 | GET | `/api/leave-requests/{id}` | Détail d'une demande |
+| POST | `/api/leave-requests` | Soumettre une demande (utilisateur courant) |
+| GET | `/api/leave-requests/pending` | Demandes en attente que l'utilisateur courant peut décider |
+| POST | `/api/leave-requests/{id}/approve` | Approuver (débite le solde pour les congés payés) |
+| POST | `/api/leave-requests/{id}/reject` | Refuser avec un motif (`{ "reason": "..." }`) |
 
 ## Travail en cours
 

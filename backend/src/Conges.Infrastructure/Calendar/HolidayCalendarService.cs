@@ -39,6 +39,20 @@ public sealed class HolidayCalendarService(IOptions<HolidayCalendarOptions> opti
             .ToList();
     }
 
+    public int CountWorkingDays(DateOnly from, DateOnly to)
+    {
+        if (to < from) return 0;
+
+        var holidays = GetHolidays(from, to).Select(h => h.Date).ToHashSet();
+        var count = 0;
+        for (var day = from; day <= to; day = day.AddDays(1))
+        {
+            if (day.DayOfWeek is not (DayOfWeek.Saturday or DayOfWeek.Sunday) && !holidays.Contains(day)) count++;
+        }
+
+        return count;
+    }
+
     private IEnumerable<Holiday> PublicHolidays(int year)
     {
         var easter = EasterSunday(year);

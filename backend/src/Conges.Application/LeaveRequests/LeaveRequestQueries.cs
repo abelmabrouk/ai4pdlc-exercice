@@ -39,9 +39,15 @@ public interface ILeaveRequestQueries
 {
     Task<IReadOnlyList<LeaveRequestDto>> ListAsync(LeaveRequestFilter filter, CancellationToken ct);
     Task<LeaveRequestDto> GetAsync(int id, CancellationToken ct);
+
+    /// <summary>Demandes en attente que l'utilisateur courant est habilité à décider.</summary>
+    Task<IReadOnlyList<LeaveRequestDto>> PendingAsync(CancellationToken ct);
 }
 
-internal sealed class LeaveRequestQueries(IAppDbContext db, IValidator<LeaveRequestFilter> filterValidator)
+internal sealed class LeaveRequestQueries(
+    IAppDbContext db,
+    IValidator<LeaveRequestFilter> filterValidator,
+    ICurrentUser currentUser)
     : ILeaveRequestQueries
 {
     public async Task<IReadOnlyList<LeaveRequestDto>> ListAsync(LeaveRequestFilter filter, CancellationToken ct)
@@ -69,6 +75,19 @@ internal sealed class LeaveRequestQueries(IAppDbContext db, IValidator<LeaveRequ
             ?? throw new NotFoundException("Demande de congé", id);
 
         return request.ToDto();
+    }
+
+    public async Task<IReadOnlyList<LeaveRequestDto>> PendingAsync(CancellationToken ct)
+    {
+        var userId = currentUser.EmployeeId;
+        var requests = await db.LeaveRequests
+            .AsNoTracking()
+            .Include(r => r.Employee!).ThenInclude(e => e.Team)
+            .Where(r => r.Status == LeaveStatus.Pending)
+            .Where(LeaveApprovers.DecidableBy(userId))
+            .OrderBy(r => r.StartDate).ThenBy(r => r.Id)
+            .ToListAsync(ct);
+        return requests.Select(r => r.ToDto()).ToList();
     }
 }
 
