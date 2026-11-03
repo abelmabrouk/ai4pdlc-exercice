@@ -5,7 +5,8 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
-    "lint:styles": "stylelint \"src/**/*.css\""
+    "lint:styles": "stylelint \"src/**/*.css\"",
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.spec.ts\""
   },
   "prettier": {
     "printWidth": 100,
