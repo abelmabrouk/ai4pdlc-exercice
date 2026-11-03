@@ -160,3 +160,20 @@ sont prises à partir du code existant (`backend/`), de la constitution et du wi
 - **Rationale** : clarification Q2. Le test existant `Unknown_leave_request_returns_problem_details_404` ne vérifie
   que le statut 404 et le type de contenu : il reste vert.
 - **Alternatives considered** : aucune, la décision vient de la clarification.
+
+## R11 — Erreurs de liaison du modèle : elles aussi par le gestionnaire global (décidé à l'implémentation)
+
+- **Constat** : pendant T016, des tests ont échoué de façon inattendue. Les 400 de liaison du modèle (JSON invalide,
+  énumération inconnue, date mal formée) étaient renvoyés en `application/json` et non en
+  `application/problem+json`. Cause racine, identifiée avec `/superpowers:systematic-debugging` : l'attribut
+  `[Produces("application/json")]` des controllers réécrit le type de contenu de la réponse automatique de
+  `[ApiController]`. Le défaut existait déjà sur la route existante `GET /api/leave-requests?status=Foo`.
+- **Decision** : dans `Program.cs`, `InvalidModelStateResponseFactory` lève une `ValidationException`
+  (FluentValidation), traduite par `GlobalExceptionHandler` exactement comme les erreurs de forme du validateur :
+  400, `application/problem+json`, `errors`, sans `code`. Toutes les routes sont concernées.
+- **Rationale** : c'est une source unique de traduction des erreurs (principe II, ADR-003). La dérogation au
+  principe II relevée par `/speckit-analyze` (C2) disparaît.
+- **Alternatives considered** : retirer `[Produces]` des trois controllers. Cette option garde la dérogation au
+  principe II et fait perdre l'information de type de contenu dans Swagger.
+- **Test** : `ReadApiTests.ERR_model_binding_errors_are_problem_details_like_validation_errors`, d'abord rouge puis
+  vert.

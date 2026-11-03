@@ -23,6 +23,7 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
                 Status = StatusCodes.Status400BadRequest,
                 Title = "La requête est invalide.",
             },
+            BusinessRuleException business => ToProblemDetails(business),
             NotFoundException notFound => new ProblemDetails
             {
                 Status = StatusCodes.Status404NotFound,
@@ -55,4 +56,21 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
             Exception = exception,
         });
     }
+
+    /// <summary>Erreur métier → ProblemDetails avec l'extension <c>code</c> (ADR-003).</summary>
+    private static ProblemDetails ToProblemDetails(BusinessRuleException exception) => new()
+    {
+        Status = exception.Kind switch
+        {
+            BusinessErrorKind.RuleViolation => StatusCodes.Status422UnprocessableEntity,
+            BusinessErrorKind.Forbidden => StatusCodes.Status403Forbidden,
+            BusinessErrorKind.NotFound => StatusCodes.Status404NotFound,
+            BusinessErrorKind.Conflict => StatusCodes.Status409Conflict,
+            _ => StatusCodes.Status500InternalServerError,
+        },
+        Type = $"https://conges.example/errors/{exception.Code.ToLowerInvariant().Replace('_', '-')}",
+        Title = exception.Title,
+        Detail = exception.Detail,
+        Extensions = { ["code"] = exception.Code },
+    };
 }

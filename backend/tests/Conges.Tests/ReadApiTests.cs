@@ -52,4 +52,20 @@ public sealed class ReadApiTests(CongesApiFactory factory) : IClassFixture<Conge
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
+
+    [Fact]
+    public async Task ERR_model_binding_errors_are_problem_details_like_validation_errors()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/leave-requests?status=Foo");
+
+        await ProblemAssert.IsValidationProblemAsync(response);
+    }
+
+    [Fact]
+    public async Task NF_unknown_leave_request_carries_the_LEAVE_NOT_FOUND_code()
+    {
+        var response = await factory.CreateClient().GetAsync("/api/leave-requests/9999");
+
+        await ProblemAssert.HasCodeAsync(response, HttpStatusCode.NotFound, "LEAVE_NOT_FOUND");
+    }
 }

@@ -1,3 +1,4 @@
+using Conges.Application.Common;
 using Conges.Application.Employees;
 using Conges.Application.LeaveRequests;
 using Conges.Application.Teams;
@@ -15,6 +16,9 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeQueries, EmployeeQueries>();
         services.AddScoped<ITeamQueries, TeamQueries>();
         services.AddScoped<ILeaveRequestQueries, LeaveRequestQueries>();
+        services.AddScoped<ICurrentUserGuard, CurrentUserGuard>();
+        services.AddSingleton<LeaveDayCounter>();
+        services.AddScoped<ILeaveRequestCommands, LeaveRequestCommands>();
 
         return services;
     }

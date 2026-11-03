@@ -66,7 +66,7 @@ modifiée
 | Principe / décision | Exigence | Conformité du plan | Statut |
 |---|---|---|---|
 | **I. Architecture en couches** | Dépendances vers l'intérieur, controllers minces, pas de `DbContext` dans un controller | Règles dans des services `Application`. `ApprovalCircuit` (règle pure) dans `Application`, car `Domain` ne contient que des entités et des énumérations. Controller : HTTP ↔ service. Le filtre `[RequireIdentifiedUser]` délègue à `ICurrentUserGuard` (`Application`). | ✅ |
-| **II. Contrats explicites** | DTO `record`, camelCase, énumérations en chaînes, `DateOnly`, FluentValidation pour la forme, ProblemDetails via le gestionnaire global | `SubmitLeaveRequest` et `RejectLeaveRequest` en `record`. `LeaveRequestDto` réutilisé. Validateur de forme uniquement. `BusinessRuleException` traduite par `GlobalExceptionHandler`. Les 400 de liaison du modèle restent produits par `[ApiController]` (voir Complexity Tracking). | ✅ (dérogation documentée) |
+| **II. Contrats explicites** | DTO `record`, camelCase, énumérations en chaînes, `DateOnly`, FluentValidation pour la forme, ProblemDetails via le gestionnaire global | `SubmitLeaveRequest` et `RejectLeaveRequest` en `record`. `LeaveRequestDto` réutilisé. Validateur de forme uniquement. `BusinessRuleException` traduite par `GlobalExceptionHandler`. Les 400 de liaison du modèle passent aussi par ce gestionnaire (`InvalidModelStateResponseFactory`, research R11). | ✅ |
 | **III. Réutilisation avant création** | Vérifier l'existant | Réutilisés : `IHolidayCalendarService`, `ICurrentUser`, `TimeProvider`, `LeaveRequestDto`/`ToDto`, `ILeaveRequestQueries`, `GlobalExceptionHandler`, `UnauthenticatedException`, `CongesApiFactory`. Seul ajout : le décompte, qui n'existe nulle part. | ✅ |
 | **IV. Tests** | xUnit, `CongesApiFactory`, `docker compose run --rm backend-tests` vert | Tests unitaires (`LeaveDayCounter`, `ApprovalCircuit`) et tests d'API par user story, avec chaque scénario d'acceptation tracé par son `RG-xx` | ✅ |
 | **V. Temps et données** | `TimeProvider`, `EnsureCreated` sans migrations, clé `ConnectionStrings:Conges` inchangée | `TimeProvider` injecté, `TestClock` en test. Seule évolution du modèle : un jeton de concurrence, sans colonne. Configuration inchangée. | ✅ |
@@ -77,8 +77,8 @@ modifiée
 | **ADR-005** (wiki) | `X-User-Id` via `ICurrentUser`, jamais `HttpContext` dans les services, 401 en ProblemDetails | `ICurrentUserGuard` lit `ICurrentUser` et lève `UnauthenticatedException` | ✅ |
 | **ADR-006** (wiki) | Spec avec « Références » et traçabilité des RG-xx | Spec conforme. Le nom des tests reprend le `RG-xx` couvert. | ✅ |
 
-**Résultat avant la Phase 0** : PASS. Une dérogation mineure au principe II est documentée dans Complexity Tracking
-(relevée par `/speckit-analyze`).
+**Résultat avant la Phase 0** : PASS. La dérogation au principe II relevée par `/speckit-analyze` (C2) a été supprimée
+pendant l'implémentation (research R11).
 **Re-check après la Phase 1** (data model, contrat, quickstart) : PASS. Le design n'introduit ni projet, ni
 dépendance, ni changement de schéma. Le filtre d'autorisation n'est pas une dérogation : il reste dans la couche
 Api et ne fait qu'appeler un service applicatif.
@@ -121,6 +121,7 @@ backend/
 │   │   └── Persistence/AppDbContext.cs         # MODIFIÉ : Status.IsConcurrencyToken()
 │   └── Conges.Api/
 │       ├── Controllers/LeaveRequestsController.cs  # MODIFIÉ : + 4 actions
+│       ├── Program.cs                          # MODIFIÉ : erreurs de liaison → gestionnaire global (R11)
 │       └── Http/
 │           ├── GlobalExceptionHandler.cs       # MODIFIÉ : BusinessRuleException → ProblemDetails + code
 │           └── RequireIdentifiedUserAttribute.cs   # NOUVEAU : filtre d'autorisation (401 avant 400)
@@ -190,6 +191,6 @@ L'ordre des étapes est celui de FR-024. Les détails sont dans [contracts/leave
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| Principe II, « ProblemDetails via le gestionnaire d'exceptions global » : les 400 de liaison du modèle (JSON invalide, date mal formée, énumération inconnue) ne passent pas par `GlobalExceptionHandler`. | ASP.NET Core les produit avant l'exécution de l'action, au format ProblemDetails (`ValidationProblemDetails`, `application/problem+json`, `errors`, sans `code`), exactement comme sur les routes existantes. Le format exigé est donc respecté. | Les faire passer par le gestionnaire (`InvalidModelStateResponseFactory` qui lève une `ValidationException`) changerait le comportement de toutes les routes existantes, sans gain pour les clients : le statut et le format sont identiques, et les clients ne lisent que `code` (ADR-003). |
+Aucune violation de la constitution n'est à justifier. La dérogation au principe II envisagée après
+`/speckit-analyze` (400 de liaison du modèle hors du gestionnaire global) a été levée à l'implémentation : voir
+research R11.

@@ -39,11 +39,34 @@ public interface ILeaveRequestQueries
 {
     Task<IReadOnlyList<LeaveRequestDto>> ListAsync(LeaveRequestFilter filter, CancellationToken ct);
     Task<LeaveRequestDto> GetAsync(int id, CancellationToken ct);
+
+    /// <summary>Demandes en attente dont l'utilisateur courant est le valideur, triées par date de début (RG-10).</summary>
+    Task<IReadOnlyList<LeaveRequestDto>> ListPendingToDecideAsync(CancellationToken ct);
 }
 
-internal sealed class LeaveRequestQueries(IAppDbContext db, IValidator<LeaveRequestFilter> filterValidator)
-    : ILeaveRequestQueries
+internal sealed class LeaveRequestQueries(
+    IAppDbContext db,
+    IValidator<LeaveRequestFilter> filterValidator,
+    ICurrentUser currentUser) : ILeaveRequestQueries
 {
+    public async Task<IReadOnlyList<LeaveRequestDto>> ListPendingToDecideAsync(CancellationToken ct)
+    {
+        var approverId = currentUser.EmployeeId;
+
+        var pending = await db.LeaveRequests
+            .AsNoTracking()
+            .Include(r => r.Employee!).ThenInclude(e => e.Team!).ThenInclude(t => t.ParentTeam)
+            .Where(r => r.Status == LeaveStatus.Pending)
+            .ToListAsync(ct);
+
+        // Filtrage en mémoire avec la même règle que la décision (ApprovalCircuit) : volume de démonstration.
+        return pending
+            .Where(r => ApprovalCircuit.ApproverIdOf(r.Employee!) == approverId)
+            .OrderBy(r => r.StartDate).ThenBy(r => r.Id)
+            .Select(r => r.ToDto())
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<LeaveRequestDto>> ListAsync(LeaveRequestFilter filter, CancellationToken ct)
     {
         await filterValidator.ValidateAndThrowAsync(filter, ct);
@@ -66,7 +89,7 @@ internal sealed class LeaveRequestQueries(IAppDbContext db, IValidator<LeaveRequ
             .AsNoTracking()
             .Include(r => r.Employee!).ThenInclude(e => e.Team)
             .SingleOrDefaultAsync(r => r.Id == id, ct)
-            ?? throw new NotFoundException("Demande de congé", id);
+            ?? throw LeaveErrors.NotFound(id);
 
         return request.ToDto();
     }
