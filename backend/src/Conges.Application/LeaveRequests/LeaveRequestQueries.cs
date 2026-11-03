@@ -39,11 +39,32 @@ public interface ILeaveRequestQueries
 {
     Task<IReadOnlyList<LeaveRequestDto>> ListAsync(LeaveRequestFilter filter, CancellationToken ct);
     Task<LeaveRequestDto> GetAsync(int id, CancellationToken ct);
+
+    /// <summary>Demandes en attente dont l'utilisateur courant est le valideur (RG-10).</summary>
+    Task<IReadOnlyList<LeaveRequestDto>> ListPendingToDecideAsync(CancellationToken ct);
 }
 
-internal sealed class LeaveRequestQueries(IAppDbContext db, IValidator<LeaveRequestFilter> filterValidator)
+internal sealed class LeaveRequestQueries(IAppDbContext db, IValidator<LeaveRequestFilter> filterValidator, ICurrentUser currentUser)
     : ILeaveRequestQueries
 {
+    public async Task<IReadOnlyList<LeaveRequestDto>> ListPendingToDecideAsync(CancellationToken ct)
+    {
+        var deciderId = currentUser.EmployeeId;
+
+        var pending = await db.LeaveRequests
+            .AsNoTracking()
+            .Include(r => r.Employee!).ThenInclude(e => e.Team!).ThenInclude(t => t.ParentTeam)
+            .Where(r => r.Status == LeaveStatus.Pending)
+            .ToListAsync(ct);
+
+        // Filtrage en mémoire : la règle du valideur n'existe qu'à un seul endroit (ApprovalCircuit).
+        return pending
+            .Where(r => ApprovalCircuit.ApproverOf(r.Employee!) == deciderId)
+            .OrderBy(r => r.StartDate).ThenBy(r => r.Id)
+            .Select(r => r.ToDto())
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<LeaveRequestDto>> ListAsync(LeaveRequestFilter filter, CancellationToken ct)
     {
         await filterValidator.ValidateAndThrowAsync(filter, ct);

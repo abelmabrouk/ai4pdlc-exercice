@@ -59,6 +59,3 @@ volumes:
   nuget:
   node_modules:
   test-artifacts:
-
-
-cd "/d/source/repos/Workshop IA/ai4pdlc-exercice" && docker compose up -d api 2>&1 | tail -5; sleep 20; docker compose logs --tail 20 api

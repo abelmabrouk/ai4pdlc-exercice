@@ -23,6 +23,7 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
                 Status = StatusCodes.Status400BadRequest,
                 Title = "La requête est invalide.",
             },
+            BusinessRuleException rule => BusinessProblem(rule),
             NotFoundException notFound => new ProblemDetails
             {
                 Status = StatusCodes.Status404NotFound,
@@ -54,5 +55,26 @@ public sealed class GlobalExceptionHandler(IProblemDetailsService problemDetails
             ProblemDetails = problem,
             Exception = exception,
         });
+    }
+
+    /// <summary>Erreur métier : statut normalisé et extension <c>code</c> stable (ADR-003).</summary>
+    private static ProblemDetails BusinessProblem(BusinessRuleException rule)
+    {
+        var problem = new ProblemDetails
+        {
+            Status = rule.Error.Kind switch
+            {
+                ErrorKind.RuleViolation => StatusCodes.Status422UnprocessableEntity,
+                ErrorKind.Forbidden => StatusCodes.Status403Forbidden,
+                ErrorKind.NotFound => StatusCodes.Status404NotFound,
+                ErrorKind.Conflict => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status500InternalServerError,
+            },
+            Type = "https://conges.example/errors/" + rule.Error.Code.ToLowerInvariant().Replace('_', '-'),
+            Title = rule.Error.Title,
+            Detail = rule.Message,
+        };
+        problem.Extensions["code"] = rule.Error.Code;
+        return problem;
     }
 }

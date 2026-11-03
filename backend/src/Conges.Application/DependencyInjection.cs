@@ -15,6 +15,8 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeQueries, EmployeeQueries>();
         services.AddScoped<ITeamQueries, TeamQueries>();
         services.AddScoped<ILeaveRequestQueries, LeaveRequestQueries>();
+        services.AddScoped<ILeaveRequestCommands, LeaveRequestCommands>();
+        services.AddSingleton<LeaveDayCounter>();
 
         return services;
     }

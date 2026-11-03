@@ -32,7 +32,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
         modelBuilder.Entity<LeaveRequest>(request =>
         {
             request.Property(r => r.Type).HasConversion<string>().HasMaxLength(30);
-            request.Property(r => r.Status).HasConversion<string>().HasMaxLength(30);
+            // Jeton de concurrence : deux décisions concurrentes sur la même demande ne peuvent pas aboutir toutes les deux.
+            request.Property(r => r.Status).HasConversion<string>().HasMaxLength(30).IsConcurrencyToken();
             request.Property(r => r.Comment).HasMaxLength(500);
             request.Property(r => r.RejectionReason).HasMaxLength(500);
             request.HasOne(r => r.Employee).WithMany().HasForeignKey(r => r.EmployeeId).OnDelete(DeleteBehavior.Restrict);
